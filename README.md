@@ -1,12 +1,14 @@
 # Solana AccountsDB Plugin for Kafka
 
+> This codebase was forked from the [Blockdaemon/solana-accountsdb-plugin-kafka](https://github.com/Blockdaemon/solana-accountsdb-plugin-kafka) repository
+
 Kafka publisher for use with Solana's [plugin framework](https://docs.solana.com/developing/plugins/geyser-plugins).
 
 ## Installation
 
 ### Binary releases
 
-Find binary releases at: https://github.com/Blockdaemon/solana-accountsdb-plugin-kafka/releases
+Find binary releases at: https://github.com/ironforge/geyser-kafka/releases
 
 ### Building from source
 
@@ -49,11 +51,14 @@ Config is specified via the plugin's JSON config file.
   "slot_status_topic": "solana.testnet.slot_status",
   "transaction_topic": "solana.testnet.transactions",
   "publish_all_accounts": false,
+  "publish_accounts_without_signature": false,
   "wrap_messages": false,
   "program_ignores": [
     "Sysvar1111111111111111111111111111111111111",
     "Vote111111111111111111111111111111111111111"
   ]
+  "program_allowlist_url": "https://example.com/program_allowlist.txt",
+  "program_allowlist_expiry_sec": 5,
 }
 ```
 
@@ -66,8 +71,20 @@ Config is specified via the plugin's JSON config file.
 - `update_account_topic`: Topic name of account updates. Omit to disable.
 - `slot_status_topic`: Topic name of slot status update. Omit to disable.
 - `publish_all_accounts`: Publish all accounts on startup. Omit to disable.
+- `publish_accounts_without_signature`: Publish account updates that have no transaction (signature) associated. Omit to disable.
 - `wrap_messages`: Wrap all messages in a unified wrapper object. Omit to disable (see Message Wrapping below).
 - `program_ignores`: Account addresses to ignore (see Filtering below).
+- `program_allowlist_url`: HTTP URL to fetch the program allowlist from. The file must be json, and with the following schema:
+  ```json
+  {
+    "result": [
+      "11111111111111111111111111111111",
+      "22222222222222222222222222222222"
+    ]
+  }
+  ```
+- `program_allowlist_auth`, Allowlist Authorization header value. If provided the request to the `program_allowlist_url` will add an `'Authorization: <value>'` header.
+   A sample auth header value would be 'Bearer my_long_secret_token'.
 
 ### Message Keys
 

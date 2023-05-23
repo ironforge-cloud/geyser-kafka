@@ -4,7 +4,7 @@ description = "Solana AccountsDb plugin for Kafka"
 authors = ["Blockdaemon"]
 version = "0.1.5+solana.1.14.18"
 edition = "2021"
-repository = "https://github.com/Blockdaemon/solana-accountsdb-plugin-kafka"
+repository = "https://github.com/ironforge-cloud/geyser-kafka"
 license = "Apache-2.0"
 
 [lib]
@@ -18,13 +18,17 @@ solana-transaction-status = { version = "=1.14.18" }
 
 log = "*"
 prost = "*"
-rdkafka = { features = ["ssl", "sasl"] }
+rdkafka = { version = "*", features = ["ssl", "sasl"] }
 serde_json = { version = "~1" }
 serde = { version = "~1", features = ["derive"] }
 simple-error = "*"
-toml_datetime = { version = "=0.6.1" } # 0.6.2 requires rust 1.64.0
-toml_edit = { version = "=0.19.8" } # 0.19.9 requires rust 1.64.0
-winnow = { version = "=0.4.1" } # 0.4.2 requires rust 1.64.0
+toml_datetime = { version = "=0.6.1" }                  # 0.6.2 requires rust 1.64.0
+toml_edit = { version = "=0.19.8" }                     # 0.19.9 requires rust 1.64.0
+winnow = { version = "=0.4.1" }                         # 0.4.2 requires rust 1.64.0
+ureq = "2.5.0"
+
+[dev-dependencies]
+mockito = "0.31.1"
 
 [build-dependencies]
 prost-build = "0.11"

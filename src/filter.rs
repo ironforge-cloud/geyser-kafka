@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::allowlist::Allowlist;
+
 use {
     crate::*,
     solana_program::pubkey::Pubkey,
@@ -20,6 +22,7 @@ use {
 
 pub struct Filter {
     program_ignores: HashSet<[u8; 32]>,
+    program_allowlist: Allowlist,
 }
 
 impl Filter {
@@ -30,10 +33,19 @@ impl Filter {
                 .iter()
                 .flat_map(|p| Pubkey::from_str(p).ok().map(|p| p.to_bytes()))
                 .collect(),
+            program_allowlist: Allowlist::new_from_config(config).unwrap(),
         }
     }
 
+    pub fn get_allowlist(&self) -> Allowlist {
+        self.program_allowlist.clone()
+    }
+
     pub fn wants_account_key(&self, account_key: &[u8]) -> bool {
+        // If allowlist is not empty, only allowlist is used.
+        if self.program_allowlist.len() > 0 {
+            return self.program_allowlist.wants_program(account_key);
+        }
         let key = match <&[u8; 32]>::try_from(account_key) {
             Ok(key) => key,
             _ => return true,

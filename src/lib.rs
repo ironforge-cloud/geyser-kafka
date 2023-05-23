@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// The generated code (via prost) does not add `Eq` derive which causes clippy warnings since Rust
+// v1.63. This is the only way to suppress those since we cannot edit the generated file.
+#![allow(clippy::derive_partial_eq_without_eq)]
+
 use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 
+mod allowlist;
 mod config;
 mod event;
 mod filter;
