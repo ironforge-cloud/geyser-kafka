@@ -1,13 +1,18 @@
+use serde::Deserialize;
+use solana_program::pubkey::Pubkey;
 use std::{
     collections::HashSet,
     str::FromStr,
     sync::{Arc, Mutex},
 };
 
+use crate::Config;
+
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPluginError as PluginError, Result as PluginResult,
 };
 
+#[derive(Clone)]
 pub struct Allowlist {
     /// List of programs to allow.
     list: Arc<Mutex<HashSet<[u8; 32]>>>,
@@ -23,25 +28,6 @@ pub struct Allowlist {
     // remote server at a time.
     http_updater_one: Arc<Mutex<()>>,
 }
-
-// Copy
-impl Clone for Allowlist {
-    fn clone(&self) -> Self {
-        Self {
-            list: self.list.clone(),
-            http_url: self.http_url.clone(),
-            http_auth: self.http_auth.clone(),
-            http_last_updated: self.http_last_updated.clone(),
-            http_update_interval: self.http_update_interval,
-            http_updater_one: self.http_updater_one.clone(),
-        }
-    }
-}
-
-use serde::Deserialize;
-use solana_program::pubkey::Pubkey;
-
-use crate::Config;
 
 #[derive(Deserialize, Debug)]
 struct RemoteAllowlist {
