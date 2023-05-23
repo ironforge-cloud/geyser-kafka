@@ -53,10 +53,6 @@ Config is specified via the plugin's JSON config file.
   "publish_all_accounts": false,
   "publish_accounts_without_signature": false,
   "wrap_messages": false,
-  "program_ignores": [
-    "Sysvar1111111111111111111111111111111111111",
-    "Vote111111111111111111111111111111111111111"
-  ]
   "program_allowlist_url": "https://example.com/program_allowlist.txt",
   "program_allowlist_expiry_sec": 5,
 }
@@ -73,7 +69,6 @@ Config is specified via the plugin's JSON config file.
 - `publish_all_accounts`: Publish all accounts on startup. Omit to disable.
 - `publish_accounts_without_signature`: Publish account updates that have no transaction (signature) associated. Omit to disable.
 - `wrap_messages`: Wrap all messages in a unified wrapper object. Omit to disable (see Message Wrapping below).
-- `program_ignores`: Account addresses to ignore (see Filtering below).
 - `program_allowlist_url`: HTTP URL to fetch the program allowlist from. The file must be json, and with the following schema:
   ```json
   {
@@ -95,9 +90,11 @@ The message types are keyed as follows:
 
 ### Filtering
 
-If `program_ignores` are specified, then these addresses will be filtered out of the account updates
+~~If `program_ignores` are specified, then these addresses will be filtered out of the account updates
 and transaction notifications.  More specifically, account update messages for these accounts will not be emitted,
-and transaction notifications for any transaction involving these accounts will not be emitted.
+and transaction notifications for any transaction involving these accounts will not be
+emitted.~~
+`program_ignores` were removed and only `program_allowlist` is supported now.
 
 ### Message Wrapping
 
