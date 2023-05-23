@@ -31,6 +31,7 @@ pub struct KafkaPlugin {
     publisher: Option<Publisher>,
     filter: Option<Filter>,
     publish_all_accounts: bool,
+    publish_accounts_without_signature: bool,
 }
 
 impl Debug for KafkaPlugin {
@@ -58,6 +59,7 @@ impl GeyserPlugin for KafkaPlugin {
         );
         let config = Config::read_from(config_file)?;
         self.publish_all_accounts = config.publish_all_accounts;
+        self.publish_accounts_without_signature = config.publish_accounts_without_signature;
 
         let (version_n, version_s) = get_rdkafka_version();
         info!("rd_kafka_version: {:#08x}, {}", version_n, version_s);
@@ -91,6 +93,9 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         let info = Self::unwrap_update_account(account);
+        if !self.publish_accounts_without_signature && info.txn_signature.is_none() {
+            return Ok(());
+        }
         if !self.unwrap_filter().wants_account_key(info.owner) {
             Self::log_ignore_account_update(info);
             return Ok(());

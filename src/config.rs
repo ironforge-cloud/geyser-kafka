@@ -49,6 +49,30 @@ pub struct Config {
     /// Publish all accounts on startup.
     #[serde(default)]
     pub publish_all_accounts: bool,
+    /// Publishes account updates even if the txn_signature is not present.
+    /// This will include account updates that occur without a corresponding
+    /// transaction, i.e. caused by validator book-keeping.
+    #[serde(default)]
+    pub publish_accounts_without_signature: bool,
+    /// Allowlist of programs to publish.
+    /// If empty, all accounts are published.
+    /// If not empty, only accounts owned by programs in this list are published.
+    #[serde(default)]
+    pub program_allowlist: Vec<String>,
+    /// Allowlist from http url.
+    /// If empty, all accounts are published.
+    /// If not empty, only accounts owned by programs in this list are published.
+    #[serde(default)]
+    pub program_allowlist_url: String,
+    /// Allowlist Authorization header value.
+    /// If provided the request to the program_allowlist_url will add an
+    /// 'Authorization: <value>' header.
+    /// A sample auth header value would be 'Bearer my_long_secret_token'.
+    #[serde(default)]
+    pub program_allowlist_auth: String,
+    /// Update iterval for allowlist from http url.
+    #[serde(default)]
+    pub program_allowlist_expiry_sec: u64,
     /// Wrap all event message in a single message type.
     #[serde(default)]
     pub wrap_messages: bool,
@@ -64,6 +88,11 @@ impl Default for Config {
             transaction_topic: "".to_owned(),
             program_ignores: Vec::new(),
             publish_all_accounts: false,
+            publish_accounts_without_signature: false,
+            program_allowlist: Vec::new(),
+            program_allowlist_url: "".to_owned(),
+            program_allowlist_auth: "".to_owned(),
+            program_allowlist_expiry_sec: 60,
             wrap_messages: false,
         }
     }

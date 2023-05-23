@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use log::error;
+
 use crate::message_wrapper::EventMessage;
 use crate::message_wrapper::EventMessage::{Account, Slot, Transaction};
 use {
@@ -122,6 +124,8 @@ impl Publisher {
 
 impl Drop for Publisher {
     fn drop(&mut self) {
-        let _ = self.producer.flush(self.shutdown_timeout);
+        if let Err(e) = self.producer.flush(self.shutdown_timeout) {
+            error!("Failed to flush producer: {}", e);
+        }
     }
 }
