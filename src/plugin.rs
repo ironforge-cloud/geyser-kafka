@@ -101,6 +101,12 @@ impl GeyserPlugin for KafkaPlugin {
             return Ok(());
         }
 
+        // Trigger an update of the remote allowlist
+        // but don't wait for it to complete.
+        self.unwrap_filter()
+            .get_allowlist()
+            .update_from_http_if_needed_async();
+
         let event = UpdateAccountEvent {
             slot,
             pubkey: info.pubkey.to_vec(),
