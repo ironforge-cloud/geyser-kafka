@@ -14,25 +14,15 @@
 
 use crate::allowlist::Allowlist;
 
-use {
-    crate::*,
-    solana_program::pubkey::Pubkey,
-    std::{collections::HashSet, str::FromStr},
-};
+use crate::*;
 
 pub struct Filter {
-    program_ignores: HashSet<[u8; 32]>,
     program_allowlist: Allowlist,
 }
 
 impl Filter {
     pub fn new(config: &Config) -> Self {
         Self {
-            program_ignores: config
-                .program_ignores
-                .iter()
-                .flat_map(|p| Pubkey::from_str(p).ok().map(|p| p.to_bytes()))
-                .collect(),
             program_allowlist: Allowlist::new_from_config(config).unwrap(),
         }
     }
@@ -44,42 +34,9 @@ impl Filter {
     pub fn wants_account_key(&self, account_key: &[u8]) -> bool {
         // If allowlist is not empty, only allowlist is used.
         if self.program_allowlist.len() > 0 {
-            return self.program_allowlist.wants_program(account_key);
+            self.program_allowlist.wants_program(account_key)
+        } else {
+            false
         }
-        let key = match <&[u8; 32]>::try_from(account_key) {
-            Ok(key) => key,
-            _ => return true,
-        };
-        !self.program_ignores.contains(key)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_filter() {
-        let config = Config {
-            program_ignores: vec![
-                "Sysvar1111111111111111111111111111111111111".to_owned(),
-                "Vote111111111111111111111111111111111111111".to_owned(),
-            ],
-            ..Config::default()
-        };
-
-        let filter = Filter::new(&config);
-        assert_eq!(filter.program_ignores.len(), 2);
-
-        assert!(filter.wants_account_key(
-            &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
-                .unwrap()
-                .to_bytes()
-        ));
-        assert!(!filter.wants_account_key(
-            &Pubkey::from_str("Vote111111111111111111111111111111111111111")
-                .unwrap()
-                .to_bytes()
-        ));
     }
 }
