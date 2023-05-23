@@ -32,7 +32,6 @@ impl Filter {
     }
 
     pub fn wants_account_key(&self, account_key: &[u8]) -> bool {
-        // If allowlist is not empty, only allowlist is used.
         if self.program_allowlist.len() > 0 {
             self.program_allowlist.wants_program(account_key)
         } else {
