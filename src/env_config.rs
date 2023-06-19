@@ -41,7 +41,10 @@ impl Default for EnvConfig {
     fn default() -> Self {
         Self {
             program_allowlist_expiry_sec: 60,
-            ..Default::default()
+            kafka: Default::default(),
+            program_allowlist: Default::default(),
+            program_allowlist_url: Default::default(),
+            program_allowlist_auth: Default::default(),
         }
     }
 }

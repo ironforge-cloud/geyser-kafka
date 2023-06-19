@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{Config, EnvConfig};
+use crate::EnvConfig;
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPluginError as PluginError, Result as PluginResult,

@@ -68,8 +68,8 @@ impl GeyserPlugin for KafkaPlugin {
         let (version_n, version_s) = get_rdkafka_version();
         info!("rd_kafka_version: {:#08x}, {}", version_n, version_s);
 
-        let publishers = Vec::new();
-        for env_config in config.environments {
+        let mut publishers = Vec::new();
+        for env_config in &config.environments {
             let producer = env_config
                 .producer()
                 .map_err(|e| PluginError::Custom(Box::new(e)))?;
@@ -103,16 +103,24 @@ impl GeyserPlugin for KafkaPlugin {
         if !self.publish_accounts_without_signature && info.txn_signature.is_none() {
             return Ok(());
         }
-        if !self.unwrap_filters().wants_account_key(info.owner) {
+        if !self
+            .unwrap_filters()
+            .iter()
+            .any(|p| p.wants_account_key(info.owner))
+        {
             Self::log_ignore_account_update(info);
+            // TODO(thlorenz): this is odd, we only update if we get an update for an account
+            // that we are already supporting, thus if we have only one program in there which
+            // almost never sees updated accounts then we won't update our allowlist below
+            // It seems like we should trigger the allowlist update before returning here
             return Ok(());
         }
 
-        // Trigger an update of the remote allowlist
+        // Trigger an update of the remote allowlist for each filter
         // but don't wait for it to complete.
-        self.unwrap_filters()
-            .get_allowlist()
-            .update_from_http_if_needed_async();
+        for filter in self.unwrap_filters() {
+            filter.get_allowlist().update_from_http_if_needed_async();
+        }
 
         let event = UpdateAccountEvent {
             slot,
@@ -129,7 +137,7 @@ impl GeyserPlugin for KafkaPlugin {
         let publishers = self.unwrap_publishers();
         let mut errors = Vec::new();
         for publisher in publishers {
-            if let Err(err) = publisher.update_account(event) {
+            if let Err(err) = publisher.update_account(event.clone()) {
                 errors.push(err.to_string());
             }
         }
@@ -184,18 +192,23 @@ impl GeyserPlugin for KafkaPlugin {
     ) -> PluginResult<()> {
         let publishers = self.unwrap_publishers();
         let mut errors = Vec::new();
+        let info = Self::unwrap_transaction(transaction);
         for publisher in publishers {
             if !publisher.wants_transaction() {
                 continue;
             }
 
-            let info = Self::unwrap_transaction(transaction);
             let maybe_ignored = info
                 .transaction
                 .message()
                 .account_keys()
                 .iter()
-                .find(|key| !self.unwrap_filters().wants_account_key(&key.to_bytes()));
+                .find(|key| {
+                    !self
+                        .unwrap_filters()
+                        .iter()
+                        .any(|f| f.wants_account_key(&key.to_bytes()))
+                });
             if maybe_ignored.is_some() {
                 debug!(
                     "Ignoring transaction {:?} due to account key: {:?}",

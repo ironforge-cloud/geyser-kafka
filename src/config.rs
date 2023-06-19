@@ -59,7 +59,13 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             shutdown_timeout_ms: 30_000,
-            ..Default::default()
+            update_account_topic: Default::default(),
+            slot_status_topic: Default::default(),
+            transaction_topic: Default::default(),
+            publish_all_accounts: Default::default(),
+            publish_accounts_without_signature: Default::default(),
+            wrap_messages: Default::default(),
+            environments: Default::default(),
         }
     }
 }
@@ -70,7 +76,7 @@ impl Config {
         let file = File::open(config_path)?;
         let mut this: Self = serde_json::from_reader(file)
             .map_err(|e| GeyserPluginError::ConfigFileReadError { msg: e.to_string() })?;
-        for env_config in this.environments {
+        for env_config in this.environments.iter_mut() {
             env_config.fill_defaults();
         }
         Ok(this)
