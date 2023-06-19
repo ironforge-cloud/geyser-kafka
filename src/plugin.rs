@@ -75,7 +75,7 @@ impl GeyserPlugin for KafkaPlugin {
                 .map_err(|e| PluginError::Custom(Box::new(e)))?;
             info!("Created rdkafka::FutureProducer");
 
-            let publisher = Publisher::new(producer, &config);
+            let publisher = Publisher::new(producer, &config, env_config.name.to_string());
             let filter = Filter::new(&env_config);
             publishers.push(FilteredPublisher { publisher, filter })
         }
@@ -103,23 +103,23 @@ impl GeyserPlugin for KafkaPlugin {
         if !self.publish_accounts_without_signature && info.txn_signature.is_none() {
             return Ok(());
         }
+
+        // Trigger an update of the remote allowlist for each filter
+        // but don't wait for it to complete.
+        // NOTE: we trigger this even on account updates that we don't care about
+        // since checking if the update interval expired should be fairly cheap.
+        // If we see a large overhead we should reconsider
+        for filter in self.unwrap_filters() {
+            filter.get_allowlist().update_from_http_if_needed_async();
+        }
+
         if !self
             .unwrap_filters()
             .iter()
             .any(|p| p.wants_account_key(info.owner))
         {
             Self::log_ignore_account_update(info);
-            // TODO(thlorenz): this is odd, we only update if we get an update for an account
-            // that we are already supporting, thus if we have only one program in there which
-            // almost never sees updated accounts then we won't update our allowlist below
-            // It seems like we should trigger the allowlist update before returning here
             return Ok(());
-        }
-
-        // Trigger an update of the remote allowlist for each filter
-        // but don't wait for it to complete.
-        for filter in self.unwrap_filters() {
-            filter.get_allowlist().update_from_http_if_needed_async();
         }
 
         let event = UpdateAccountEvent {
@@ -138,11 +138,14 @@ impl GeyserPlugin for KafkaPlugin {
         let mut errors = Vec::new();
         for publisher in publishers {
             if let Err(err) = publisher.update_account(event.clone()) {
-                errors.push(err.to_string());
+                errors.push(format!(
+                    "Error: {} in {} environment",
+                    err.to_string(),
+                    publisher.env,
+                ));
             }
         }
         if !errors.is_empty() {
-            // TODO(thlorenz): think about naming environments and including that info here
             Err(PluginError::AccountsUpdateError {
                 msg: errors.join(" | "),
             })
@@ -172,7 +175,11 @@ impl GeyserPlugin for KafkaPlugin {
             };
 
             if let Err(err) = publisher.update_slot_status(event) {
-                errors.push(err.to_string());
+                errors.push(format!(
+                    "Error: {} in {} environment",
+                    err.to_string(),
+                    publisher.env,
+                ));
             }
         }
 
@@ -221,7 +228,11 @@ impl GeyserPlugin for KafkaPlugin {
             let event = Self::build_transaction_event(slot, info);
 
             if let Err(err) = publisher.update_transaction(event) {
-                errors.push(err.to_string());
+                errors.push(format!(
+                    "Error: {} in {} environment",
+                    err.to_string(),
+                    publisher.env,
+                ));
             }
         }
         if !errors.is_empty() {

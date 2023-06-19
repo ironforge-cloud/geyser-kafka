@@ -10,6 +10,10 @@ use crate::Producer;
 /// Environment specific config.
 #[derive(Deserialize)]
 pub struct EnvConfig {
+    /// Name of the environment
+    #[serde(default)]
+    pub name: String,
+
     /// Kafka config.
     pub kafka: HashMap<String, String>,
 
@@ -41,6 +45,7 @@ impl Default for EnvConfig {
     fn default() -> Self {
         Self {
             program_allowlist_expiry_sec: 60,
+            name: Default::default(),
             kafka: Default::default(),
             program_allowlist: Default::default(),
             program_allowlist_url: Default::default(),
