@@ -12,25 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::EnvConfig;
+
 use {
-    rdkafka::{
-        config::FromClientConfig,
-        error::KafkaResult,
-        producer::{DefaultProducerContext, ThreadedProducer},
-        ClientConfig,
-    },
+    rdkafka::producer::{DefaultProducerContext, ThreadedProducer},
     serde::Deserialize,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPluginError, Result as PluginResult,
     },
-    std::{collections::HashMap, fs::File, path::Path},
+    std::{fs::File, path::Path},
 };
 
 /// Plugin config.
 #[derive(Deserialize)]
 pub struct Config {
-    /// Kafka config.
-    pub kafka: HashMap<String, String>,
     /// Graceful shutdown timeout.
     #[serde(default)]
     pub shutdown_timeout_ms: u64,
@@ -51,45 +46,20 @@ pub struct Config {
     /// transaction, i.e. caused by validator book-keeping.
     #[serde(default)]
     pub publish_accounts_without_signature: bool,
-    /// Allowlist of programs to publish.
-    /// If empty, all accounts are published.
-    /// If not empty, only accounts owned by programs in this list are published.
-    #[serde(default)]
-    pub program_allowlist: Vec<String>,
-    /// Allowlist from http url.
-    /// If empty, all accounts are published.
-    /// If not empty, only accounts owned by programs in this list are published.
-    #[serde(default)]
-    pub program_allowlist_url: String,
-    /// Allowlist Authorization header value.
-    /// If provided the request to the program_allowlist_url will add an
-    /// 'Authorization: <value>' header.
-    /// A sample auth header value would be 'Bearer my_long_secret_token'.
-    #[serde(default)]
-    pub program_allowlist_auth: String,
-    /// Update iterval for allowlist from http url.
-    #[serde(default)]
-    pub program_allowlist_expiry_sec: u64,
     /// Wrap all event message in a single message type.
     #[serde(default)]
     pub wrap_messages: bool,
+
+    #[serde(default)]
+    /// Kafka cluster and allow list configs for different environments
+    pub environments: Vec<EnvConfig>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            kafka: HashMap::new(),
             shutdown_timeout_ms: 30_000,
-            update_account_topic: "".to_owned(),
-            slot_status_topic: "".to_owned(),
-            transaction_topic: "".to_owned(),
-            publish_all_accounts: false,
-            publish_accounts_without_signature: false,
-            program_allowlist: Vec::new(),
-            program_allowlist_url: "".to_owned(),
-            program_allowlist_auth: "".to_owned(),
-            program_allowlist_expiry_sec: 60,
-            wrap_messages: false,
+            ..Default::default()
         }
     }
 }
@@ -100,30 +70,10 @@ impl Config {
         let file = File::open(config_path)?;
         let mut this: Self = serde_json::from_reader(file)
             .map_err(|e| GeyserPluginError::ConfigFileReadError { msg: e.to_string() })?;
-        this.fill_defaults();
+        for env_config in this.environments {
+            env_config.fill_defaults();
+        }
         Ok(this)
-    }
-
-    /// Create rdkafka::FutureProducer from config.
-    pub fn producer(&self) -> KafkaResult<Producer> {
-        let mut config = ClientConfig::new();
-        for (k, v) in self.kafka.iter() {
-            config.set(k, v);
-        }
-        ThreadedProducer::from_config(&config)
-    }
-
-    fn set_default(&mut self, k: &'static str, v: &'static str) {
-        if !self.kafka.contains_key(k) {
-            self.kafka.insert(k.to_owned(), v.to_owned());
-        }
-    }
-
-    fn fill_defaults(&mut self) {
-        self.set_default("request.required.acks", "1");
-        self.set_default("message.timeout.ms", "30000");
-        self.set_default("compression.type", "lz4");
-        self.set_default("partitioner", "murmur2_random");
     }
 }
 

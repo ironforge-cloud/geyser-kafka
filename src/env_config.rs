@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use rdkafka::{
+    config::FromClientConfig, error::KafkaResult, producer::ThreadedProducer, ClientConfig,
+};
 use serde::Deserialize;
 
 /// Environment specific config.
@@ -41,5 +44,29 @@ impl Default for EnvConfig {
             program_allowlist_auth: "".to_owned(),
             program_allowlist_expiry_sec: 60,
         }
+    }
+}
+
+impl EnvConfig {
+    /// Create rdkafka::FutureProducer from config.
+    pub fn producer(&self) -> KafkaResult<Producer> {
+        let mut config = ClientConfig::new();
+        for (k, v) in self.kafka.iter() {
+            config.set(k, v);
+        }
+        ThreadedProducer::from_config(&config)
+    }
+
+    fn set_default(&mut self, k: &'static str, v: &'static str) {
+        if !self.kafka.contains_key(k) {
+            self.kafka.insert(k.to_owned(), v.to_owned());
+        }
+    }
+
+    pub(crate) fn fill_defaults(&mut self) {
+        self.set_default("request.required.acks", "1");
+        self.set_default("message.timeout.ms", "30000");
+        self.set_default("compression.type", "lz4");
+        self.set_default("partitioner", "murmur2_random");
     }
 }
