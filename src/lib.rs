@@ -20,6 +20,7 @@ use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 
 mod allowlist;
 mod config;
+mod env_config;
 mod event;
 mod filter;
 mod plugin;
@@ -27,6 +28,7 @@ mod publisher;
 
 pub use {
     config::{Config, Producer},
+    env_config::EnvConfig,
     event::*,
     filter::Filter,
     plugin::KafkaPlugin,

@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::Config;
+use crate::{Config, EnvConfig};
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPluginError as PluginError, Result as PluginResult,
@@ -41,7 +41,7 @@ impl Allowlist {
         let list = self.list.lock().unwrap();
         list.len()
     }
-    pub fn new_from_config(config: &Config) -> PluginResult<Self> {
+    pub fn new_from_config(config: &EnvConfig) -> PluginResult<Self> {
         if !config.program_allowlist_url.is_empty() {
             let mut out = Self::new_from_http(
                 &config.program_allowlist_url.clone(),
@@ -314,11 +314,11 @@ mod tests {
             .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
             .create();
 
-        let config = Config {
+        let config = EnvConfig {
             program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
             program_allowlist_expiry_sec: 3,
             program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
-            ..Config::default()
+            ..EnvConfig::default()
         };
 
         let mut allowlist = Allowlist::new_from_config(&config).unwrap();
