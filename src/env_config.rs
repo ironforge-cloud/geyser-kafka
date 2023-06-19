@@ -5,6 +5,8 @@ use rdkafka::{
 };
 use serde::Deserialize;
 
+use crate::Producer;
+
 /// Environment specific config.
 #[derive(Deserialize)]
 pub struct EnvConfig {
@@ -38,11 +40,8 @@ pub struct EnvConfig {
 impl Default for EnvConfig {
     fn default() -> Self {
         Self {
-            kafka: HashMap::new(),
-            program_allowlist: Vec::new(),
-            program_allowlist_url: "".to_owned(),
-            program_allowlist_auth: "".to_owned(),
             program_allowlist_expiry_sec: 60,
+            ..Default::default()
         }
     }
 }
