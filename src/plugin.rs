@@ -76,7 +76,7 @@ impl GeyserPlugin for KafkaPlugin {
             info!("Created rdkafka::FutureProducer");
 
             let publisher = Publisher::new(producer, &config, env_config.name.to_string());
-            let filter = Filter::new(&env_config);
+            let filter = Filter::new(env_config);
             publishers.push(FilteredPublisher { publisher, filter })
         }
         self.publishers = Some(publishers);
@@ -138,11 +138,7 @@ impl GeyserPlugin for KafkaPlugin {
         let mut errors = Vec::new();
         for publisher in publishers {
             if let Err(err) = publisher.update_account(event.clone()) {
-                errors.push(format!(
-                    "Error: {} in {} environment",
-                    err.to_string(),
-                    publisher.env,
-                ));
+                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
             }
         }
         if !errors.is_empty() {
@@ -175,11 +171,7 @@ impl GeyserPlugin for KafkaPlugin {
             };
 
             if let Err(err) = publisher.update_slot_status(event) {
-                errors.push(format!(
-                    "Error: {} in {} environment",
-                    err.to_string(),
-                    publisher.env,
-                ));
+                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
             }
         }
 
@@ -228,11 +220,7 @@ impl GeyserPlugin for KafkaPlugin {
             let event = Self::build_transaction_event(slot, info);
 
             if let Err(err) = publisher.update_transaction(event) {
-                errors.push(format!(
-                    "Error: {} in {} environment",
-                    err.to_string(),
-                    publisher.env,
-                ));
+                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
             }
         }
         if !errors.is_empty() {
