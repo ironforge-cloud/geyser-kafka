@@ -276,12 +276,12 @@ mod tests {
     use super::*;
     #[test]
     fn test_allowlist_from_vec() {
-        let config = Config {
+        let config = EnvConfig {
             program_allowlist: vec![
                 "Sysvar1111111111111111111111111111111111111".to_owned(),
                 "Vote111111111111111111111111111111111111111".to_owned(),
             ],
-            ..Config::default()
+            ..EnvConfig::default()
         };
 
         let allowlist = Allowlist::new_from_vec(config.program_allowlist).unwrap();
