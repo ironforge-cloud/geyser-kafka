@@ -26,10 +26,14 @@ use {
     std::fmt::{Debug, Formatter},
 };
 
+pub struct FilteredPublisher {
+    publisher: Publisher,
+    filter: Filter,
+}
+
 #[derive(Default)]
 pub struct KafkaPlugin {
-    publisher: Option<Publisher>,
-    filter: Option<Filter>,
+    publishers: Option<Vec<FilteredPublisher>>,
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
 }
@@ -46,7 +50,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn on_load(&mut self, config_file: &str) -> PluginResult<()> {
-        if self.publisher.is_some() {
+        if self.publishers.is_some() {
             let err = simple_error!("plugin already loaded");
             return Err(PluginError::Custom(Box::new(err)));
         }
@@ -64,22 +68,25 @@ impl GeyserPlugin for KafkaPlugin {
         let (version_n, version_s) = get_rdkafka_version();
         info!("rd_kafka_version: {:#08x}, {}", version_n, version_s);
 
-        let producer = config
-            .producer()
-            .map_err(|e| PluginError::Custom(Box::new(e)))?;
-        info!("Created rdkafka::FutureProducer");
+        let mut publishers = Vec::new();
+        for env_config in &config.environments {
+            let producer = env_config
+                .producer()
+                .map_err(|e| PluginError::Custom(Box::new(e)))?;
+            info!("Created rdkafka::FutureProducer");
 
-        let publisher = Publisher::new(producer, &config);
-        self.publisher = Some(publisher);
-        self.filter = Some(Filter::new(&config));
-        info!("Spawned producer");
+            let publisher = Publisher::new(producer, &config, env_config.name.to_string());
+            let filter = Filter::new(env_config);
+            publishers.push(FilteredPublisher { publisher, filter })
+        }
+        self.publishers = Some(publishers);
+        info!("Spawned producers");
 
         Ok(())
     }
 
     fn on_unload(&mut self) {
-        self.publisher = None;
-        self.filter = None;
+        self.publishers = None;
     }
 
     fn update_account(
@@ -96,16 +103,27 @@ impl GeyserPlugin for KafkaPlugin {
         if !self.publish_accounts_without_signature && info.txn_signature.is_none() {
             return Ok(());
         }
-        if !self.unwrap_filter().wants_account_key(info.owner) {
+
+        // Trigger an update of the remote allowlist for each filter
+        // but don't wait for it to complete.
+        // NOTE: we trigger this even on account updates that we don't care about
+        // since checking if the update interval expired should be fairly cheap.
+        // If we see a large overhead we should reconsider
+        let now = std::time::Instant::now();
+        for filter in self.unwrap_filters() {
+            filter
+                .get_allowlist()
+                .update_from_http_if_needed_async(&now);
+        }
+
+        if !self
+            .unwrap_filters()
+            .iter()
+            .any(|p| p.wants_account_key(info.owner))
+        {
             Self::log_ignore_account_update(info);
             return Ok(());
         }
-
-        // Trigger an update of the remote allowlist
-        // but don't wait for it to complete.
-        self.unwrap_filter()
-            .get_allowlist()
-            .update_from_http_if_needed_async();
 
         let event = UpdateAccountEvent {
             slot,
@@ -119,10 +137,20 @@ impl GeyserPlugin for KafkaPlugin {
             txn_signature: info.txn_signature.map(|sig| sig.as_ref().to_owned()),
         };
 
-        let publisher = self.unwrap_publisher();
-        publisher
-            .update_account(event)
-            .map_err(|e| PluginError::AccountsUpdateError { msg: e.to_string() })
+        let publishers = self.unwrap_publishers();
+        let mut errors = Vec::new();
+        for publisher in publishers {
+            if let Err(err) = publisher.update_account(event.clone()) {
+                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
+            }
+        }
+        if !errors.is_empty() {
+            Err(PluginError::AccountsUpdateError {
+                msg: errors.join(" | "),
+            })
+        } else {
+            Ok(())
+        }
     }
 
     fn update_slot_status(
@@ -131,20 +159,32 @@ impl GeyserPlugin for KafkaPlugin {
         parent: Option<u64>,
         status: PluginSlotStatus,
     ) -> PluginResult<()> {
-        let publisher = self.unwrap_publisher();
-        if !publisher.wants_slot_status() {
-            return Ok(());
+        let publishers = self.unwrap_publishers();
+
+        let mut errors = Vec::new();
+        for publisher in publishers {
+            if !publisher.wants_slot_status() {
+                continue;
+            }
+
+            let event = SlotStatusEvent {
+                slot,
+                parent: parent.unwrap_or(0),
+                status: SlotStatus::from(status).into(),
+            };
+
+            if let Err(err) = publisher.update_slot_status(event) {
+                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
+            }
         }
 
-        let event = SlotStatusEvent {
-            slot,
-            parent: parent.unwrap_or(0),
-            status: SlotStatus::from(status).into(),
-        };
-
-        publisher
-            .update_slot_status(event)
-            .map_err(|e| PluginError::AccountsUpdateError { msg: e.to_string() })
+        if !errors.is_empty() {
+            Err(PluginError::SlotStatusUpdateError {
+                msg: errors.join(" | "),
+            })
+        } else {
+            Ok(())
+        }
     }
 
     fn notify_transaction(
@@ -152,40 +192,59 @@ impl GeyserPlugin for KafkaPlugin {
         transaction: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> PluginResult<()> {
-        let publisher = self.unwrap_publisher();
-        if !publisher.wants_transaction() {
-            return Ok(());
-        }
-
+        let publishers = self.unwrap_publishers();
+        let mut errors = Vec::new();
         let info = Self::unwrap_transaction(transaction);
-        let maybe_ignored = info
-            .transaction
-            .message()
-            .account_keys()
-            .iter()
-            .find(|key| !self.unwrap_filter().wants_account_key(&key.to_bytes()));
-        if maybe_ignored.is_some() {
-            debug!(
-                "Ignoring transaction {:?} due to account key: {:?}",
-                info.signature,
-                &maybe_ignored.unwrap()
-            );
-            return Ok(());
+        for publisher in publishers {
+            if !publisher.wants_transaction() {
+                continue;
+            }
+
+            let maybe_ignored = info
+                .transaction
+                .message()
+                .account_keys()
+                .iter()
+                .find(|key| {
+                    !self
+                        .unwrap_filters()
+                        .iter()
+                        .any(|f| f.wants_account_key(&key.to_bytes()))
+                });
+            if maybe_ignored.is_some() {
+                debug!(
+                    "Ignoring transaction {:?} due to account key: {:?}",
+                    info.signature,
+                    &maybe_ignored.unwrap()
+                );
+                return Ok(());
+            }
+
+            let event = Self::build_transaction_event(slot, info);
+
+            if let Err(err) = publisher.update_transaction(event) {
+                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
+            }
         }
-
-        let event = Self::build_transaction_event(slot, info);
-
-        publisher
-            .update_transaction(event)
-            .map_err(|e| PluginError::TransactionUpdateError { msg: e.to_string() })
+        if !errors.is_empty() {
+            Err(PluginError::TransactionUpdateError {
+                msg: errors.join(" | "),
+            })
+        } else {
+            Ok(())
+        }
     }
 
     fn account_data_notifications_enabled(&self) -> bool {
-        self.unwrap_publisher().wants_update_account()
+        self.unwrap_publishers()
+            .iter()
+            .any(|p| p.wants_update_account())
     }
 
     fn transaction_notifications_enabled(&self) -> bool {
-        self.unwrap_publisher().wants_transaction()
+        self.unwrap_publishers()
+            .iter()
+            .any(|p| p.wants_transaction())
     }
 }
 
@@ -194,12 +253,22 @@ impl KafkaPlugin {
         Default::default()
     }
 
-    fn unwrap_publisher(&self) -> &Publisher {
-        self.publisher.as_ref().expect("publisher is unavailable")
+    fn unwrap_publishers(&self) -> Vec<&Publisher> {
+        self.publishers
+            .as_ref()
+            .expect("filtered publishers are unavailable")
+            .iter()
+            .map(|x| &x.publisher)
+            .collect::<Vec<_>>()
     }
 
-    fn unwrap_filter(&self) -> &Filter {
-        self.filter.as_ref().expect("filter is unavailable")
+    fn unwrap_filters(&self) -> Vec<&Filter> {
+        self.publishers
+            .as_ref()
+            .expect("filtered publishers are unavailable")
+            .iter()
+            .map(|x| &x.filter)
+            .collect::<Vec<_>>()
     }
 
     fn unwrap_update_account(account: ReplicaAccountInfoVersions) -> &ReplicaAccountInfoV2 {

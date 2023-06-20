@@ -27,6 +27,7 @@ use {
 };
 
 pub struct Publisher {
+    pub(crate) env: String,
     producer: Producer,
     shutdown_timeout: Duration,
 
@@ -38,8 +39,9 @@ pub struct Publisher {
 }
 
 impl Publisher {
-    pub fn new(producer: Producer, config: &Config) -> Self {
+    pub fn new(producer: Producer, config: &Config, env: String) -> Self {
         Self {
+            env,
             producer,
             shutdown_timeout: Duration::from_millis(config.shutdown_timeout_ms),
             update_account_topic: config.update_account_topic.clone(),

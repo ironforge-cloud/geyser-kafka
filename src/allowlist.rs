@@ -4,9 +4,10 @@ use std::{
     collections::HashSet,
     str::FromStr,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
-use crate::Config;
+use crate::EnvConfig;
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPluginError as PluginError, Result as PluginResult,
@@ -41,7 +42,7 @@ impl Allowlist {
         let list = self.list.lock().unwrap();
         list.len()
     }
-    pub fn new_from_config(config: &Config) -> PluginResult<Self> {
+    pub fn new_from_config(config: &EnvConfig) -> PluginResult<Self> {
         if !config.program_allowlist_url.is_empty() {
             let mut out = Self::new_from_http(
                 &config.program_allowlist_url.clone(),
@@ -222,17 +223,16 @@ impl Allowlist {
         });
     }
 
-    pub fn is_remote_allowlist_expired(&self) -> bool {
+    pub fn is_remote_allowlist_expired(&self, now: &Instant) -> bool {
         if self.http_url.is_empty() {
             return false;
         }
         let last_updated = self.get_last_updated();
-        let now = std::time::Instant::now();
         now.duration_since(last_updated) > self.http_update_interval
     }
 
-    pub fn update_from_http_if_needed_async(&mut self) {
-        if self.is_remote_allowlist_expired() {
+    pub fn update_from_http_if_needed_async(&mut self, now: &Instant) {
+        if self.is_remote_allowlist_expired(now) {
             self.update_from_http_non_blocking();
         }
     }
@@ -273,15 +273,17 @@ impl Allowlist {
 
 #[cfg(test)]
 mod tests {
+    use std::{thread, time::Duration};
+
     use super::*;
     #[test]
     fn test_allowlist_from_vec() {
-        let config = Config {
+        let config = EnvConfig {
             program_allowlist: vec![
                 "Sysvar1111111111111111111111111111111111111".to_owned(),
                 "Vote111111111111111111111111111111111111111".to_owned(),
             ],
-            ..Config::default()
+            ..EnvConfig::default()
         };
 
         let allowlist = Allowlist::new_from_vec(config.program_allowlist).unwrap();
@@ -314,16 +316,17 @@ mod tests {
             .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
             .create();
 
-        let config = Config {
+        let config = EnvConfig {
             program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
             program_allowlist_expiry_sec: 3,
             program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
-            ..Config::default()
+            ..EnvConfig::default()
         };
 
         let mut allowlist = Allowlist::new_from_config(&config).unwrap();
+        let now = std::time::Instant::now();
         assert_eq!(allowlist.len(), 3);
-        assert!(!allowlist.is_remote_allowlist_expired());
+        assert!(!allowlist.is_remote_allowlist_expired(&now));
 
         assert!(allowlist.wants_program(
             &Pubkey::from_str("WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC")
@@ -395,9 +398,12 @@ mod tests {
             // before the async task completes
             assert_eq!(allowlist.get_last_updated(), last_updated);
             assert_eq!(allowlist.len(), 0);
-            // sleep for 1 second to allow the async task to complete
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            assert!(!allowlist.is_remote_allowlist_expired());
+
+            // sleep for 100 milliseconds to allow the async task to complete
+            thread::sleep(std::time::Duration::from_millis(100));
+            let now = std::time::Instant::now();
+
+            assert!(!allowlist.is_remote_allowlist_expired(&now));
 
             assert_eq!(allowlist.len(), 2);
             assert_ne!(allowlist.get_last_updated(), last_updated);
@@ -419,8 +425,11 @@ mod tests {
                     .to_bytes()
             ));
 
-            std::thread::sleep(std::time::Duration::from_secs(3));
-            assert!(allowlist.is_remote_allowlist_expired());
+            // Claim we are 3 seconds in the future
+            let now = std::time::Instant::now()
+                .checked_add(Duration::from_secs(3))
+                .unwrap();
+            assert!(allowlist.is_remote_allowlist_expired(&now));
         }
     }
 }

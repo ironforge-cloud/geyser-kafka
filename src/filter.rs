@@ -21,7 +21,7 @@ pub struct Filter {
 }
 
 impl Filter {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &EnvConfig) -> Self {
         Self {
             program_allowlist: Allowlist::new_from_config(config).unwrap(),
         }
