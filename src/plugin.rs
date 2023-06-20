@@ -26,14 +26,9 @@ use {
     std::fmt::{Debug, Formatter},
 };
 
-pub struct FilteredPublisher {
-    publisher: Publisher,
-    filter: Filter,
-}
-
 #[derive(Default)]
 pub struct KafkaPlugin {
-    publishers: Option<Vec<FilteredPublisher>>,
+    publishers: Option<Vec<FilteringPublisher>>,
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
 }
@@ -77,7 +72,7 @@ impl GeyserPlugin for KafkaPlugin {
 
             let publisher = Publisher::new(producer, &config, env_config.name.to_string());
             let filter = Filter::new(env_config);
-            publishers.push(FilteredPublisher { publisher, filter })
+            publishers.push(FilteringPublisher::new(publisher, filter))
         }
         self.publishers = Some(publishers);
         info!("Spawned producers");

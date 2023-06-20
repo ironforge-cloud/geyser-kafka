@@ -23,6 +23,7 @@ mod config;
 mod env_config;
 mod event;
 mod filter;
+mod filtering_publisher;
 mod plugin;
 mod publisher;
 
@@ -31,6 +32,7 @@ pub use {
     env_config::EnvConfig,
     event::*,
     filter::Filter,
+    filtering_publisher::FilteringPublisher,
     plugin::KafkaPlugin,
     publisher::Publisher,
 };
