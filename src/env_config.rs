@@ -25,13 +25,14 @@ pub struct EnvConfig {
 
     /// URL to fetch allowlist updates from
     /// The file must be json, and with the following schema:
-    /// ```
-    ///{
+    /// ```json
+    /// {
     ///   "result": [
     ///       "11111111111111111111111111111111",
     ///       "22222222222222222222222222222222"
     ///   ]
     /// }
+    /// ```
     #[serde(default)]
     pub program_allowlist_url: String,
 
