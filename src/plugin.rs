@@ -26,14 +26,9 @@ use {
     std::fmt::{Debug, Formatter},
 };
 
-pub struct FilteredPublisher {
-    publisher: Publisher,
-    filter: Filter,
-}
-
 #[derive(Default)]
 pub struct KafkaPlugin {
-    publishers: Option<Vec<FilteredPublisher>>,
+    publishers: Option<Vec<FilteringPublisher>>,
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
 }
@@ -77,7 +72,7 @@ impl GeyserPlugin for KafkaPlugin {
 
             let publisher = Publisher::new(producer, &config, env_config.name.to_string());
             let filter = Filter::new(env_config);
-            publishers.push(FilteredPublisher { publisher, filter })
+            publishers.push(FilteringPublisher::new(publisher, filter))
         }
         self.publishers = Some(publishers);
         info!("Spawned producers");
@@ -110,17 +105,14 @@ impl GeyserPlugin for KafkaPlugin {
         // since checking if the update interval expired should be fairly cheap.
         // If we see a large overhead we should reconsider
         let now = std::time::Instant::now();
-        for filter in self.unwrap_filters() {
-            filter
+        let publishers = &self.unwrap_publishers();
+        for publisher in publishers {
+            publisher
                 .get_allowlist()
                 .update_from_http_if_needed_async(&now);
         }
 
-        if !self
-            .unwrap_filters()
-            .iter()
-            .any(|p| p.wants_account_key(info.owner))
-        {
+        if !publishers.iter().any(|p| p.wants_account_key(info.owner)) {
             Self::log_ignore_account_update(info);
             return Ok(());
         }
@@ -137,11 +129,14 @@ impl GeyserPlugin for KafkaPlugin {
             txn_signature: info.txn_signature.map(|sig| sig.as_ref().to_owned()),
         };
 
-        let publishers = self.unwrap_publishers();
         let mut errors = Vec::new();
         for publisher in publishers {
+            if !publisher.wants_account_key(info.owner) {
+                continue;
+            }
+
             if let Err(err) = publisher.update_account(event.clone()) {
-                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
+                errors.push(format!("Error: {} in {} environment", err, publisher.env()));
             }
         }
         if !errors.is_empty() {
@@ -159,7 +154,7 @@ impl GeyserPlugin for KafkaPlugin {
         parent: Option<u64>,
         status: PluginSlotStatus,
     ) -> PluginResult<()> {
-        let publishers = self.unwrap_publishers();
+        let publishers = &self.unwrap_publishers();
 
         let mut errors = Vec::new();
         for publisher in publishers {
@@ -174,7 +169,7 @@ impl GeyserPlugin for KafkaPlugin {
             };
 
             if let Err(err) = publisher.update_slot_status(event) {
-                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
+                errors.push(format!("Error: {} in {} environment", err, publisher.env()));
             }
         }
 
@@ -193,8 +188,9 @@ impl GeyserPlugin for KafkaPlugin {
         slot: u64,
     ) -> PluginResult<()> {
         let publishers = self.unwrap_publishers();
-        let mut errors = Vec::new();
         let info = Self::unwrap_transaction(transaction);
+
+        let mut errors = Vec::new();
         for publisher in publishers {
             if !publisher.wants_transaction() {
                 continue;
@@ -207,9 +203,9 @@ impl GeyserPlugin for KafkaPlugin {
                 .iter()
                 .find(|key| {
                     !self
-                        .unwrap_filters()
+                        .unwrap_publishers()
                         .iter()
-                        .any(|f| f.wants_account_key(&key.to_bytes()))
+                        .any(|p| p.wants_account_key(&key.to_bytes()))
                 });
             if maybe_ignored.is_some() {
                 debug!(
@@ -223,7 +219,7 @@ impl GeyserPlugin for KafkaPlugin {
             let event = Self::build_transaction_event(slot, info);
 
             if let Err(err) = publisher.update_transaction(event) {
-                errors.push(format!("Error: {} in {} environment", err, publisher.env,));
+                errors.push(format!("Error: {} in {} environment", err, publisher.env()));
             }
         }
         if !errors.is_empty() {
@@ -253,21 +249,11 @@ impl KafkaPlugin {
         Default::default()
     }
 
-    fn unwrap_publishers(&self) -> Vec<&Publisher> {
+    fn unwrap_publishers(&self) -> Vec<&FilteringPublisher> {
         self.publishers
             .as_ref()
             .expect("filtered publishers are unavailable")
             .iter()
-            .map(|x| &x.publisher)
-            .collect::<Vec<_>>()
-    }
-
-    fn unwrap_filters(&self) -> Vec<&Filter> {
-        self.publishers
-            .as_ref()
-            .expect("filtered publishers are unavailable")
-            .iter()
-            .map(|x| &x.filter)
             .collect::<Vec<_>>()
     }
 
