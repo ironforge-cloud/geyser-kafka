@@ -257,7 +257,6 @@ impl KafkaPlugin {
             .collect::<Vec<_>>()
     }
 
-
     fn unwrap_update_account(account: ReplicaAccountInfoVersions) -> &ReplicaAccountInfoV2 {
         match account {
             ReplicaAccountInfoVersions::V0_0_1(_info) => {

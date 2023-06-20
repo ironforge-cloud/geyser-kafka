@@ -10,7 +10,9 @@ pub struct FilteringPublisher {
 }
 
 impl FilteringPublisher {
-    pub fn new(publisher: Publisher, filter: Filter) -> Self { Self { publisher, filter } }
+    pub fn new(publisher: Publisher, filter: Filter) -> Self {
+        Self { publisher, filter }
+    }
 
     // -----------------
     // Filter
