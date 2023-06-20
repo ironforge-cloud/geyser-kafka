@@ -32,54 +32,124 @@ Loading a plugin targeting wrong versions will result in memory corruption and c
 
 ## Config
 
-Config is specified via the plugin's JSON config file.
+The config is specified via the plugin's JSON config file. It contains settings that apply to all
+environments and some that are environment specific.
+
+### Environment Config Values
+
+This config needs to be added per environment. Thus using different allow list settings for
+different Kafka clusters is possible. Each item in the `environments` array is an `EnvConfig`
+and follows the below schema.
+
+* **name** (`String`)
+    * Name of the environment
+* **kafka** (`HashMap<String, String>`)
+    * Kafka [`librdkafka` config options](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md).
+* **program_allowlist** (`Vec<String>`)
+    * Allowlist of programs to publish.
+        * If empty, all accounts are published.
+        * If not empty, only accounts owned by programs in this list are published.
+* **program_allowlist_url** (`String`)
+    * URL to fetch allowlist updates from
+    * The file must be json, and with the following schema:
+      ```json
+      {
+        "result": [
+            "11111111111111111111111111111111",
+            "22222222222222222222222222222222"
+        ]
+      }
+      ```
+* **program_allowlist_auth** (`String`)
+    * Allowlist Authorization header value.
+        * If provided the request to the program_allowlist_url will add an
+            'Authorization: <value>' header.
+        * A sample auth header value would be 'Bearer my_long_secret_token'.
+* **program_allowlist_expiry_sec** (`u64`)
+    * Update iterval for allowlist from http url.
+
+### Global Config Values
+
+The below config values are global and apply to all environments. Environment specific settings
+are added to the `environments` array.
+
+* **shutdown_timeout_ms** (`u64`)
+    * Time the plugin is given to flush out all messages to Kafka
+        * and gracefully shutdown upon exit request.
+* **update_account_topic** (`String`)
+    * Kafka topic to send account updates to.
+        * Omit to disable.
+* **slot_status_topic** (`String`)
+    * Kafka topic to send slot status updates to.
+        * Omit to disable.
+* **transaction_topic** (`String`)
+    * Kafka topic to send transaction updates to.
+        * Omit to disable.
+* **publish_all_accounts** (`bool`)
+    * Publish all accounts on startup.
+        * Omit to disable.
+* **publish_accounts_without_signature** (`bool`)
+    * Publishes account updates even if the txn_signature is not present.
+        * This will include account updates that occur without a corresponding
+            * transaction, i.e. caused by validator book-keeping.
+        * Omit to disable.
+* **wrap_messages** (`bool`)
+    * Wrap all messages in a unified wrapper object.
+        * Omit to disable.
+* **environments** (`Vec<EnvConfig>`)
+    * Kafka cluster and allow list configs for different environments.
+        * See [EnvConfig].
 
 ### Example Config
 
 ```json
 {
-  "libpath": "target/release/libsolana_accountsdb_plugin_kafka.so",
-  "kafka": {
-    "bootstrap.servers": "localhost:9092",
-    "request.required.acks": "1",
-    "message.timeout.ms": "30000",
-    "compression.type": "lz4",
-    "partitioner": "murmur2_random"
-  },
+  "libpath": "/home/solana/geyser-kafka/target/release/libsolana_accountsdb_plugin_kafka.so",
   "shutdown_timeout_ms": 30000,
-  "update_account_topic": "solana.testnet.account_updates",
-  "slot_status_topic": "solana.testnet.slot_status",
-  "transaction_topic": "solana.testnet.transactions",
+  "update_account_topic": "geyser.mainnet.account_update",
+  "update_slot_topic": "geyser.mainnet.slot_update",
+  "update_transaction_topic": "geyser.mainnet.transaction_update",
   "publish_all_accounts": false,
   "publish_accounts_without_signature": false,
   "wrap_messages": false,
-  "program_allowlist_url": "https://example.com/program_allowlist.txt",
-  "program_allowlist_expiry_sec": 5,
+  "environments": [
+    {
+      "name": "dev",
+      "program_allowlist_url": "https://example.com/supported-programs",
+      "program_allowlist_auth": "Bearer <dev secret bearer token>",
+      "program_allowlist_expiry_sec": 30,
+      "kafka": {
+        "bootstrap.servers": "dev.bootstrap-server:9092",
+        "sasl.username": "<username>",
+        "sasl.password": "<base64 encoded password>",
+        "sasl.mechanism": "SCRAM-SHA-256",
+        "security.protocol": "SASL_SSL",
+        "request.required.acks": "1",
+        "message.timeout.ms": "30000",
+        "compression.type": "lz4",
+        "partitioner": "random"
+      }
+    },
+    {
+      "name": "stage",
+      "program_allowlist_url": "https://example.com/supported-programs",
+      "program_allowlist_auth": "Bearer <stage secret bearer token>",
+      "program_allowlist_expiry_sec": 15,
+      "kafka": {
+        "bootstrap.servers": "stage.bootstrap-server:9092",
+        "sasl.username": "<username>",
+        "sasl.password": "<base64 encoded password>",
+        "sasl.mechanism": "SCRAM-SHA-256",
+        "security.protocol": "SASL_SSL",
+        "request.required.acks": "1",
+        "message.timeout.ms": "30000",
+        "compression.type": "lz4",
+        "partitioner": "random"
+      }
+    }
+  ]
 }
 ```
-
-### Reference
-
-- `libpath`: Path to Kafka plugin
-- `kafka`: [`librdkafka` config options](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md).
-  This plugin overrides the defaults as seen in the example config.
-- `shutdown_timeout_ms`: Time the plugin is given to flush out all messages to Kafka upon exit request.
-- `update_account_topic`: Topic name of account updates. Omit to disable.
-- `slot_status_topic`: Topic name of slot status update. Omit to disable.
-- `publish_all_accounts`: Publish all accounts on startup. Omit to disable.
-- `publish_accounts_without_signature`: Publish account updates that have no transaction (signature) associated. Omit to disable.
-- `wrap_messages`: Wrap all messages in a unified wrapper object. Omit to disable (see Message Wrapping below).
-- `program_allowlist_url`: HTTP URL to fetch the program allowlist from. The file must be json, and with the following schema:
-  ```json
-  {
-    "result": [
-      "11111111111111111111111111111111",
-      "22222222222222222222222222222222"
-    ]
-  }
-  ```
-- `program_allowlist_auth`, Allowlist Authorization header value. If provided the request to the `program_allowlist_url` will add an `'Authorization: <value>'` header.
-   A sample auth header value would be 'Bearer my_long_secret_token'.
 
 ### Message Keys
 

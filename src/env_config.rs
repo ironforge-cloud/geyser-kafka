@@ -14,18 +14,24 @@ pub struct EnvConfig {
     #[serde(default)]
     pub name: String,
 
-    /// Kafka config.
+    /// Kafka [`librdkafka` config options](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md).
     pub kafka: HashMap<String, String>,
 
     /// Allowlist of programs to publish.
-    /// If empty, all accounts are published.
+    /// If empty, no accounts are published.
     /// If not empty, only accounts owned by programs in this list are published.
     #[serde(default)]
     pub program_allowlist: Vec<String>,
 
-    /// Allowlist from http url.
-    /// If empty, all accounts are published.
-    /// If not empty, only accounts owned by programs in this list are published.
+    /// URL to fetch allowlist updates from
+    /// The file must be json, and with the following schema:
+    /// ```
+    ///{
+    ///   "result": [
+    ///       "11111111111111111111111111111111",
+    ///       "22222222222222222222222222222222"
+    ///   ]
+    /// }
     #[serde(default)]
     pub program_allowlist_url: String,
 

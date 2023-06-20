@@ -26,32 +26,33 @@ use {
 /// Plugin config.
 #[derive(Deserialize)]
 pub struct Config {
-    /// Graceful shutdown timeout.
+    /// Time the plugin is given to flush out all messages to Kafka
+    /// and gracefully shutdown upon exit request.
     #[serde(default)]
     pub shutdown_timeout_ms: u64,
-    /// Kafka topic to send account updates to.
+    /// Kafka topic to send account updates to. Omit to disable.
     #[serde(default)]
     pub update_account_topic: String,
-    /// Kafka topic to send slot status updates to.
+    /// Kafka topic to send slot status updates to. Omit to disable.
     #[serde(default)]
     pub slot_status_topic: String,
-    /// Kafka topic to send transaction to.
+    /// Kafka topic to send transaction updates to. Omit to disable.
     #[serde(default)]
     pub transaction_topic: String,
-    /// Publish all accounts on startup.
+    /// Publish all accounts on startup. Omit to disable.
     #[serde(default)]
     pub publish_all_accounts: bool,
     /// Publishes account updates even if the txn_signature is not present.
     /// This will include account updates that occur without a corresponding
-    /// transaction, i.e. caused by validator book-keeping.
+    /// transaction, i.e. caused by validator book-keeping. Omit to disable.
     #[serde(default)]
     pub publish_accounts_without_signature: bool,
-    /// Wrap all event message in a single message type.
+    /// Wrap all messages in a unified wrapper object. Omit to disable.
     #[serde(default)]
     pub wrap_messages: bool,
 
     #[serde(default)]
-    /// Kafka cluster and allow list configs for different environments
+    /// Kafka cluster and allow list configs for different environments. See [EnvConfig].
     pub environments: Vec<EnvConfig>,
 }
 
