@@ -4,6 +4,7 @@ use std::{
     collections::HashSet,
     str::FromStr,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 use crate::EnvConfig;
@@ -222,17 +223,16 @@ impl Allowlist {
         });
     }
 
-    pub fn is_remote_allowlist_expired(&self) -> bool {
+    pub fn is_remote_allowlist_expired(&self, now: &Instant) -> bool {
         if self.http_url.is_empty() {
             return false;
         }
         let last_updated = self.get_last_updated();
-        let now = std::time::Instant::now();
         now.duration_since(last_updated) > self.http_update_interval
     }
 
-    pub fn update_from_http_if_needed_async(&mut self) {
-        if self.is_remote_allowlist_expired() {
+    pub fn update_from_http_if_needed_async(&mut self, now: &Instant) {
+        if self.is_remote_allowlist_expired(now) {
             self.update_from_http_non_blocking();
         }
     }
@@ -273,6 +273,8 @@ impl Allowlist {
 
 #[cfg(test)]
 mod tests {
+    use std::{thread, time::Duration};
+
     use super::*;
     #[test]
     fn test_allowlist_from_vec() {
@@ -322,8 +324,9 @@ mod tests {
         };
 
         let mut allowlist = Allowlist::new_from_config(&config).unwrap();
+        let now = std::time::Instant::now();
         assert_eq!(allowlist.len(), 3);
-        assert!(!allowlist.is_remote_allowlist_expired());
+        assert!(!allowlist.is_remote_allowlist_expired(&now));
 
         assert!(allowlist.wants_program(
             &Pubkey::from_str("WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC")
@@ -395,9 +398,12 @@ mod tests {
             // before the async task completes
             assert_eq!(allowlist.get_last_updated(), last_updated);
             assert_eq!(allowlist.len(), 0);
-            // sleep for 1 second to allow the async task to complete
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            assert!(!allowlist.is_remote_allowlist_expired());
+
+            // sleep for 100 milliseconds to allow the async task to complete
+            thread::sleep(std::time::Duration::from_millis(100));
+            let now = std::time::Instant::now();
+
+            assert!(!allowlist.is_remote_allowlist_expired(&now));
 
             assert_eq!(allowlist.len(), 2);
             assert_ne!(allowlist.get_last_updated(), last_updated);
@@ -419,8 +425,11 @@ mod tests {
                     .to_bytes()
             ));
 
-            std::thread::sleep(std::time::Duration::from_secs(3));
-            assert!(allowlist.is_remote_allowlist_expired());
+            // Claim we are 3 seconds in the future
+            let now = std::time::Instant::now()
+                .checked_add(Duration::from_secs(3))
+                .unwrap();
+            assert!(allowlist.is_remote_allowlist_expired(&now));
         }
     }
 }

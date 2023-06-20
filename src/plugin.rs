@@ -109,8 +109,11 @@ impl GeyserPlugin for KafkaPlugin {
         // NOTE: we trigger this even on account updates that we don't care about
         // since checking if the update interval expired should be fairly cheap.
         // If we see a large overhead we should reconsider
+        let now = std::time::Instant::now();
         for filter in self.unwrap_filters() {
-            filter.get_allowlist().update_from_http_if_needed_async();
+            filter
+                .get_allowlist()
+                .update_from_http_if_needed_async(&now);
         }
 
         if !self
