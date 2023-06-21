@@ -57,7 +57,7 @@ impl Publisher {
             temp_key = self.copy_and_prepend(ev.pubkey.as_slice(), 65u8);
             (&temp_key, Self::encode_with_wrapper(Account(Box::new(ev))))
         } else {
-            (&ev.pubkey, ev.encode_to_vec())
+            (&ev.owner, ev.encode_to_vec())
         };
         let record = BaseRecord::<Vec<u8>, _>::to(&self.update_account_topic)
             .key(key)
