@@ -18,7 +18,7 @@ use {
     rdkafka::util::get_rdkafka_version,
     simple_error::simple_error,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
-        GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV3, 
+        GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV3,
         ReplicaAccountInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions,
         Result as PluginResult, SlotStatus as PluginSlotStatus,
     },
@@ -249,7 +249,7 @@ impl KafkaPlugin {
         Default::default()
     }
 
-        fn build_inner_instruction(
+    fn build_inner_instruction(
         ix: &solana_transaction_status::InnerInstruction,
     ) -> InnerInstruction {
         InnerInstruction {
@@ -368,7 +368,7 @@ impl KafkaPlugin {
                     None => vec![],
                 },
                 inner_instructions: match &transaction_status_meta.inner_instructions {
-                     Some(inners) => inners
+                    Some(inners) => inners
                         .clone()
                         .into_iter()
                         .map(|inner| InnerInstructions {
