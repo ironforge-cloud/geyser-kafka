@@ -2,7 +2,7 @@
 name = "solana-accountsdb-plugin-kafka"
 description = "Solana AccountsDb plugin for Kafka"
 authors = ["Blockdaemon"]
-version = "0.1.5+solana.1.14.18"
+version = "0.1.5+solana.1.16.1-rc1"
 edition = "2021"
 repository = "https://github.com/ironforge-cloud/geyser-kafka"
 license = "Apache-2.0"
@@ -11,14 +11,14 @@ license = "Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-solana-geyser-plugin-interface = { version = "=1.14.18" }
-solana-logger = { version = "=1.14.18" }
-solana-program = { version = "=1.14.18" }
-solana-transaction-status = { version = "=1.14.18" }
+solana-geyser-plugin-interface = { version = "~1.16" }
+solana-logger = { version = "~1.16" }
+solana-program = "~1.16"
+solana-transaction-status = { version = "~1.16" }
 
 log = "*"
 prost = "*"
-rdkafka = { version = "*", features = ["ssl", "sasl"] }
+rdkafka = { version = "0.32.2", features = ["ssl", "sasl"] }
 serde_json = { version = "~1" }
 serde = { version = "~1", features = ["derive"] }
 simple-error = "*"
@@ -31,7 +31,7 @@ ureq = "2.5.0"
 mockito = "0.31.1"
 
 [build-dependencies]
-prost-build = "0.11"
+prost-build = "*"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
