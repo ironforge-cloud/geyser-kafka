@@ -45,7 +45,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn on_load(&mut self, config_file: &str) -> PluginResult<()> {
-        if self.publishers.is_some() {
+        if self.publisher.is_some() {
             let err = simple_error!("plugin already loaded");
             return Err(PluginError::Custom(Box::new(err)));
         }
@@ -74,14 +74,14 @@ impl GeyserPlugin for KafkaPlugin {
             let filter = Filter::new(env_config);
             publishers.push(FilteringPublisher::new(publisher, filter))
         }
-        self.publishers = Some(publishers);
+        self.publisher = Some(publishers);
         info!("Spawned producers");
 
         Ok(())
     }
 
     fn on_unload(&mut self) {
-        self.publishers = None;
+        self.publisher = None;
     }
 
     fn update_account(
@@ -251,7 +251,7 @@ impl KafkaPlugin {
     }
 
     fn unwrap_publishers(&self) -> Vec<&FilteringPublisher> {
-        self.publishers
+        self.publisher
             .as_ref()
             .expect("filtered publishers are unavailable")
             .iter()
