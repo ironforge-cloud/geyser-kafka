@@ -1,10 +1,10 @@
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     paths:
-      - '.github/workflows/release.yml'
+      - ".github/workflows/release.yml"
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,7 +17,7 @@ jobs:
 
       - name: Set env vars
         run: |
-          source ci/rust-version.sh
+          rust_stable=$(rustc --version | awk '{print $2}')
           echo "RUST_STABLE=$rust_stable" | tee -a $GITHUB_ENV
 
       - if: runner.os == 'Linux'

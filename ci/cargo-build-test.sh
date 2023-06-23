@@ -6,15 +6,13 @@
 set -e
 cd "$(dirname "$0")/.."
 
-source ./ci/rust-version.sh stable
-
 export RUSTFLAGS="-D warnings"
 export RUSTBACKTRACE=1
 
 set -x
 
 # Build/test all host crates
-cargo +"$rust_stable" build
+rust_stable=$(rustc --version | awk '{print $2}')
 cargo +"$rust_stable" test -- --nocapture
 
 exit 0
