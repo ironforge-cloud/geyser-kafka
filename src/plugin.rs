@@ -18,7 +18,7 @@ use {
     rdkafka::util::get_rdkafka_version,
     simple_error::simple_error,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
-        GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV2,
+        GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV3,
         ReplicaAccountInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions,
         Result as PluginResult, SlotStatus as PluginSlotStatus,
     },
@@ -85,7 +85,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn update_account(
-        &mut self,
+        &self,
         account: ReplicaAccountInfoVersions,
         slot: u64,
         is_startup: bool,
@@ -126,7 +126,7 @@ impl GeyserPlugin for KafkaPlugin {
             rent_epoch: info.rent_epoch,
             data: info.data.to_vec(),
             write_version: info.write_version,
-            txn_signature: info.txn_signature.map(|sig| sig.as_ref().to_owned()),
+            txn_signature: info.txn.map(|v| v.signature().as_ref().to_owned()),
         };
 
         let mut errors = Vec::new();
@@ -149,7 +149,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn update_slot_status(
-        &mut self,
+        self,
         slot: u64,
         parent: Option<u64>,
         status: PluginSlotStatus,
@@ -257,12 +257,15 @@ impl KafkaPlugin {
             .collect::<Vec<_>>()
     }
 
-    fn unwrap_update_account(account: ReplicaAccountInfoVersions) -> &ReplicaAccountInfoV2 {
+    fn unwrap_update_account(account: ReplicaAccountInfoVersions) -> &ReplicaAccountInfoV3 {
         match account {
             ReplicaAccountInfoVersions::V0_0_1(_info) => {
                 panic!("ReplicaAccountInfoVersions::V0_0_1 unsupported, please upgrade your Solana node.");
             }
-            ReplicaAccountInfoVersions::V0_0_2(info) => info,
+            ReplicaAccountInfoVersions::V0_0_2(_info) => {
+                panic!("ReplicaAccountInfoVersions::V0_0_2 unsupported, please upgrade your Solana node.");
+            }
+            ReplicaAccountInfoVersions::V0_0_3(info) => info,
         }
     }
 
@@ -274,6 +277,15 @@ impl KafkaPlugin {
                 panic!("ReplicaTransactionInfoVersions::V0_0_1 unsupported, please upgrade your Solana node.");
             }
             ReplicaTransactionInfoVersions::V0_0_2(info) => info,
+        }
+    }
+
+    fn build_inner_instruction(
+        ix: &solana_transaction_status::InnerInstruction,
+    ) -> InnerInstruction {
+        InnerInstruction {
+            instruction: Some(Self::build_compiled_instruction(&ix.instruction)),
+            stack_height: ix.stack_height,
         }
     }
 
@@ -360,12 +372,12 @@ impl KafkaPlugin {
                     Some(inners) => inners
                         .clone()
                         .into_iter()
-                        .map(|inner| InnerInstruction {
+                        .map(|inner| InnerInstructions {
                             index: inner.index as u32,
                             instructions: inner
                                 .instructions
                                 .iter()
-                                .map(Self::build_compiled_instruction)
+                                .map(Self::build_inner_instruction)
                                 .collect(),
                         })
                         .collect(),
@@ -489,7 +501,7 @@ impl KafkaPlugin {
         }
     }
 
-    fn log_ignore_account_update(info: &ReplicaAccountInfoV2) {
+    fn log_ignore_account_update(info: &ReplicaAccountInfoV3) {
         if log_enabled!(::log::Level::Debug) {
             match <&[u8; 32]>::try_from(info.owner) {
                 Ok(key) => debug!(
