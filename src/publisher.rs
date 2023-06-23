@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use log::error;
-
 use crate::message_wrapper::EventMessage;
 use crate::message_wrapper::EventMessage::{Account, Slot, Transaction};
 use {
@@ -27,7 +25,6 @@ use {
 };
 
 pub struct Publisher {
-    pub(crate) env: String,
     producer: Producer,
     shutdown_timeout: Duration,
 
@@ -39,9 +36,8 @@ pub struct Publisher {
 }
 
 impl Publisher {
-    pub fn new(producer: Producer, config: &Config, env: String) -> Self {
+    pub fn new(producer: Producer, config: &Config) -> Self {
         Self {
-            env,
             producer,
             shutdown_timeout: Duration::from_millis(config.shutdown_timeout_ms),
             update_account_topic: config.update_account_topic.clone(),
@@ -54,10 +50,10 @@ impl Publisher {
     pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
         let temp_key;
         let (key, buf) = if self.wrap_messages {
-            temp_key = self.copy_and_prepend(ev.owner.as_slice(), 65u8);
+            temp_key = self.copy_and_prepend(ev.pubkey.as_slice(), 65u8);
             (&temp_key, Self::encode_with_wrapper(Account(Box::new(ev))))
         } else {
-            (&ev.owner, ev.encode_to_vec())
+            (&ev.pubkey, ev.encode_to_vec())
         };
         let record = BaseRecord::<Vec<u8>, _>::to(&self.update_account_topic)
             .key(key)
@@ -126,8 +122,6 @@ impl Publisher {
 
 impl Drop for Publisher {
     fn drop(&mut self) {
-        if let Err(e) = self.producer.flush(self.shutdown_timeout) {
-            error!("Failed to flush producer: {}", e);
-        }
+        let _ = self.producer.flush(self.shutdown_timeout);
     }
 }
