@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use simple_error::SimpleError;
 use solana_program::pubkey::Pubkey;
 use std::{
     collections::HashSet,
@@ -52,7 +53,14 @@ impl Allowlist {
             .unwrap();
 
             if !config.program_allowlist.is_empty() {
+                // The allowlist to start with can be defined in the config
                 out.push_vec(config.program_allowlist.clone());
+            } else {
+                // Otherwise, fetch the allowlist to start with from the provided url
+                out.init_list_from_http_blocking(
+                    &config.program_allowlist_url,
+                    &config.program_allowlist_auth,
+                )?;
             }
 
             Ok(out)
@@ -221,6 +229,19 @@ impl Allowlist {
             let mut http_last_updated = http_last_updated.lock().unwrap();
             *http_last_updated = std::time::Instant::now();
         });
+    }
+
+    /// Initializes this allow list with data obtained from the given URL synchronously.
+    pub fn init_list_from_http_blocking(&self, url: &str, auth: &str) -> PluginResult<()> {
+        let program_allowlist = Self::fetch_remote_allowlist(url, auth)?;
+
+        let mut list = self.list.lock().unwrap();
+        *list = program_allowlist;
+
+        let mut http_last_updated = self.http_last_updated.lock().unwrap();
+        *http_last_updated = std::time::Instant::now();
+
+        Ok(())
     }
 
     pub fn is_remote_allowlist_expired(&self, now: &Instant) -> bool {
