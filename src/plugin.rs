@@ -251,6 +251,14 @@ impl KafkaPlugin {
         Default::default()
     }
 
+        fn unwrap_publisher(&self) -> &Publisher {
+        self.publisher.as_ref().expect("publisher is unavailable")
+    }
+
+    fn unwrap_filter(&self) -> &Filter {
+        self.filter.as_ref().expect("filter is unavailable")
+    }
+
     fn build_inner_instruction(
         ix: &solana_transaction_status::InnerInstruction,
     ) -> InnerInstruction {
