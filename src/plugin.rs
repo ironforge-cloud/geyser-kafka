@@ -95,7 +95,8 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         let info = Self::unwrap_update_account(account);
-        if !self.publish_accounts_without_signature && info.txn_signature.is_none() {
+        if !self.unwrap_filter().wants_account_key(info.owner) {
+            Self::log_ignore_account_update(info);
             return Ok(());
         }
 
