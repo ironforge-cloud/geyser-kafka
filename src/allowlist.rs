@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use simple_error::SimpleError;
 use solana_program::pubkey::Pubkey;
 use std::{
     collections::HashSet,
@@ -43,8 +44,9 @@ impl Allowlist {
         list.len()
     }
     pub fn new_from_config(config: &EnvConfig) -> PluginResult<Self> {
+        // Users can provide a URL to fetch the allow list from
         if !config.program_allowlist_url.is_empty() {
-            let mut out = Self::new_from_http(
+            let mut this = Self::new_from_http(
                 &config.program_allowlist_url.clone(),
                 &config.program_allowlist_auth.clone(),
                 std::time::Duration::from_secs(config.program_allowlist_expiry_sec),
@@ -52,22 +54,28 @@ impl Allowlist {
             .unwrap();
 
             if !config.program_allowlist.is_empty() {
-                out.push_vec(config.program_allowlist.clone());
+                // The allowlist to start with can be defined in the config
+                this.push_vec(config.program_allowlist.clone());
+            } else {
+                // Otherwise, fetch it from the provided url
+                this.init_list_from_http_blocking(
+                    &config.program_allowlist_url,
+                    &config.program_allowlist_auth,
+                )?;
             }
 
-            Ok(out)
-        } else if !config.program_allowlist.is_empty() {
-            Self::new_from_vec(config.program_allowlist.clone())
-        } else {
-            Ok(Self {
-                list: Arc::new(Mutex::new(HashSet::new())),
-                http_last_updated: Arc::new(Mutex::new(std::time::Instant::now())),
-                http_url: "".to_string(),
-                http_auth: "".to_string(),
-                http_update_interval: std::time::Duration::from_secs(0),
-                http_updater_one: Arc::new(Mutex::new(())),
-            })
+            return Ok(this);
         }
+
+        // If no url is provided, then the allowlist needs to be defined in the config
+        if config.program_allowlist.is_empty() {
+            return Err(PluginError::Custom(Box::new(SimpleError::new(
+                "Need to provide a program allowlist provided or a URL to fetch it from"
+                    .to_string(),
+            ))));
+        }
+
+        Self::new_from_vec(config.program_allowlist.clone())
     }
 
     /// new_from_vec creates a new Allowlist from a vector of program ids.
@@ -221,6 +229,19 @@ impl Allowlist {
             let mut http_last_updated = http_last_updated.lock().unwrap();
             *http_last_updated = std::time::Instant::now();
         });
+    }
+
+    /// Initializes this allow list with data obtained from the given URL synchronously.
+    pub fn init_list_from_http_blocking(&self, url: &str, auth: &str) -> PluginResult<()> {
+        let program_allowlist = Self::fetch_remote_allowlist(url, auth)?;
+
+        let mut list = self.list.lock().unwrap();
+        *list = program_allowlist;
+
+        let mut http_last_updated = self.http_last_updated.lock().unwrap();
+        *http_last_updated = std::time::Instant::now();
+
+        Ok(())
     }
 
     pub fn is_remote_allowlist_expired(&self, now: &Instant) -> bool {
