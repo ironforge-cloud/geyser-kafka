@@ -45,7 +45,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn on_load(&mut self, config_file: &str) -> PluginResult<()> {
-        if self.publishers.is_some() {
+        if self.publisher.is_some() {
             let err = simple_error!("plugin already loaded");
             return Err(PluginError::Custom(Box::new(err)));
         }
@@ -60,7 +60,7 @@ impl GeyserPlugin for KafkaPlugin {
         self.publish_all_accounts = config.publish_all_accounts;
         self.publish_accounts_without_signature = config.publish_accounts_without_signature;
 
-        let (version_n, version_s) = get_rdkafka_version();
+       let (version_n, version_s) = get_rdkafka_version();
         info!("rd_kafka_version: {:#08x}, {}", version_n, version_s);
 
         let mut publishers = Vec::new();
@@ -81,7 +81,8 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn on_unload(&mut self) {
-        self.publishers = None;
+        self.publisher = None;
+        self.filter = None;
     }
 
     fn update_account(
