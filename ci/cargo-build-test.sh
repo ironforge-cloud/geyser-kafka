@@ -13,6 +13,7 @@ set -x
 
 # Build/test all host crates
 rust_stable=$(rustc --version | awk '{print $2}')
+cargo +"$rust_stable" build
 cargo +"$rust_stable" test -- --nocapture
 
 exit 0
