@@ -149,7 +149,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn update_slot_status(
-        self,
+        &self,
         slot: u64,
         parent: Option<u64>,
         status: PluginSlotStatus,
@@ -183,7 +183,7 @@ impl GeyserPlugin for KafkaPlugin {
     }
 
     fn notify_transaction(
-        &mut self,
+        &self,
         transaction: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> PluginResult<()> {
