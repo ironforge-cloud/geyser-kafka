@@ -28,9 +28,9 @@ use {
 
 #[derive(Default)]
 pub struct KafkaPlugin {
-    publishers: Option<Vec<FilteringPublisher>>,
+    publisher: Option<Publisher>,
+    filter: Option<Filter>,
     publish_all_accounts: bool,
-    publish_accounts_without_signature: bool,
 }
 
 impl Debug for KafkaPlugin {
