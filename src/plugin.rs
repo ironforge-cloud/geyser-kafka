@@ -250,6 +250,14 @@ impl KafkaPlugin {
         Default::default()
     }
 
+    fn unwrap_publisher(&self) -> &Publisher {
+        self.publisher.as_ref().expect("publisher is unavailable")
+    }
+
+    fn unwrap_filter(&self) -> &Filter {
+        self.filter.as_ref().expect("filter is unavailable")
+    }
+    
     fn unwrap_publishers(&self) -> Vec<&FilteringPublisher> {
         self.publisher
             .as_ref()
