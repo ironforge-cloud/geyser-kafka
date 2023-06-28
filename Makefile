@@ -26,12 +26,17 @@ dev-log:
 		--geyser-plugin-config $(CONFIG) 
 
 # The below does not work since it tries to start a new validator
+# It seems a _plugin_ subcommand was added to the test-validator in [this
+# diff](https://github.com/solana-labs/solana/pull/30352/files#diff-8ecaeb68b49224aee20774bb6fb002735dfff3409db871bba785353cbdf51c1cR1468).o
+#
+# At that point the solana version was `1.16.0`.
+#
+# Same _subcommand_ [on master](https://github.com/solana-labs/solana/blob/master/validator/src/cli.rs#L1520)
 plugin-reload:
-	RUST_LOG=$(RUST_LOG) \
 	solana-test-validator \
-		--ledger $(LEDGER) \
-		--geyser-plugin-config $(CONFIG) \
-		plugin reload $(CONFIG)
+		plugin reload \
+		--name solana-accountsdb-plugin-kafka \
+		--config $(CONFIG)
 	
 # Flag `--geyser-plugin-config` requires `v1.16.x` of solana tools
 verify:
