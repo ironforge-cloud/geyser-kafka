@@ -54,10 +54,10 @@ impl Publisher {
     pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
         let temp_key;
         let (key, buf) = if self.wrap_messages {
-            temp_key = self.copy_and_prepend(ev.owner.as_slice(), 65u8);
+            temp_key = self.copy_and_prepend(ev.pubkey.as_slice(), 65u8);
             (&temp_key, Self::encode_with_wrapper(Account(Box::new(ev))))
         } else {
-            (&ev.owner, ev.encode_to_vec())
+            (&ev.pubkey, ev.encode_to_vec())
         };
         let record = BaseRecord::<Vec<u8>, _>::to(&self.update_account_topic)
             .key(key)
