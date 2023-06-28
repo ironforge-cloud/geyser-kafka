@@ -3,8 +3,8 @@ DIR=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 LEDGER=$(DIR)/ledger
 CONFIG=$(DIR)/config.json
 
-LOG_LEVEL=DEBUG
-RUST_LOG=solana_accountsdb_plugin_kafka=$(LEVEL),solana_geyser_plugin_manager=$(LEVEL)
+LOG_LEVEL=INFO
+RUST_LOG=solana_accountsdb_plugin_kafka=INFO,solana_geyser_plugin_manager=INFO,DEBUG,ERROR
 
 AMMAN=./node_modules/.bin/amman
 
@@ -16,7 +16,7 @@ dev:
 	RUST_LOG=$(RUST_LOG) \
 	solana-test-validator -r \
 		--ledger $(LEDGER) \
-		--geyser-plugin-config $(CONFIG) 
+		--geyser-plugin-config $(CONFIG)
 
 dev-log:
 	RUST_LOG=$(RUST_LOG) \
@@ -24,6 +24,14 @@ dev-log:
 		--log \
 		--ledger $(LEDGER) \
 		--geyser-plugin-config $(CONFIG) 
+
+# The below does not work since it tries to start a new validator
+plugin-reload:
+	RUST_LOG=$(RUST_LOG) \
+	solana-test-validator \
+		--ledger $(LEDGER) \
+		--geyser-plugin-config $(CONFIG) \
+		plugin reload $(CONFIG)
 	
 # Flag `--geyser-plugin-config` requires `v1.16.x` of solana tools
 verify:
