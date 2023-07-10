@@ -45,6 +45,18 @@ pub struct Config {
     /// The keys are the alternate topics and the value is a collection of program
     /// addresses. If an account's owner matches one of those addresses its updates
     /// are sent to the alternative topic instead of [update_account_topic].
+    ///
+    /// ### Example
+    /// ```json
+    /// {
+    ///   "update_account_topic_overrides": {
+    ///      "geyser.mainnet.spl.account_update": [
+    ///         "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    ///         "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    ///      ]
+    ///    }
+    /// }
+    /// ```
     #[serde(default)]
     pub update_account_topic_overrides: HashMap<String, HashSet<String>>,
 
