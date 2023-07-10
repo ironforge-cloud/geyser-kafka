@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
+use solana_program::pubkey::Pubkey;
+
 use crate::EnvConfig;
 
 use {
@@ -20,7 +24,11 @@ use {
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPluginError, Result as PluginResult,
     },
-    std::{fs::File, path::Path},
+    std::{
+        collections::{HashMap, HashSet},
+        fs::File,
+        path::Path,
+    },
 };
 
 /// Plugin config.
@@ -33,6 +41,13 @@ pub struct Config {
     /// Kafka topic to send account updates to. Omit to disable.
     #[serde(default)]
     pub update_account_topic: String,
+    /// Kafka topic overrides to send specific account updates to. Omit to disable.
+    /// The keys are the alternate topics and the value is a collection of program
+    /// addresses. If an account's owner matches one of those addresses its updates
+    /// are sent to the alternative topic instead of [update_account_topic].
+    #[serde(default)]
+    pub update_account_topic_overrides: HashMap<String, HashSet<String>>,
+
     /// Kafka topic to send slot status updates to. Omit to disable.
     #[serde(default)]
     pub slot_status_topic: String,
@@ -61,6 +76,7 @@ impl Default for Config {
         Self {
             shutdown_timeout_ms: 30_000,
             update_account_topic: Default::default(),
+            update_account_topic_overrides: Default::default(),
             slot_status_topic: Default::default(),
             transaction_topic: Default::default(),
             publish_all_accounts: Default::default(),
@@ -82,6 +98,69 @@ impl Config {
         }
         Ok(this)
     }
+
+    pub fn update_topic_overrides_by_account(&self) -> HashMap<Vec<u8>, String> {
+        let mut map = HashMap::new();
+        for (topic, accounts) in &self.update_account_topic_overrides {
+            for address in accounts {
+                let pubkey = Pubkey::from_str(address)
+                    .unwrap_or_else(|_| panic!("Invalid pubkey {address}"))
+                    .to_bytes()
+                    .to_vec();
+                map.insert(pubkey, topic.clone());
+            }
+        }
+        map
+    }
 }
 
 pub type Producer = ThreadedProducer<DefaultProducerContext>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_env_topic_overrides() {
+        let config = Config::read_from("test/fixtures/configs/single-env-topic-overrides.json")
+            .expect("should deserialize config");
+        let expected_overrides = {
+            let mut map = HashMap::new();
+            let set: HashSet<String> = vec![
+                "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+            map.insert("geyser.mainnet.spl.account_update".to_string(), set);
+            map
+        };
+
+        let expected_overrides_by_account = {
+            let mut map = HashMap::new();
+            map.insert(
+                Pubkey::from_str("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+                    .unwrap()
+                    .to_bytes()
+                    .to_vec(),
+                "geyser.mainnet.spl.account_update".to_string(),
+            );
+            map.insert(
+                Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+                    .unwrap()
+                    .to_bytes()
+                    .to_vec(),
+                "geyser.mainnet.spl.account_update".to_string(),
+            );
+            map
+        };
+        assert_eq!(config.update_account_topic, "geyser.mainnet.account_update",);
+        assert_eq!(config.update_account_topic_overrides, expected_overrides);
+        assert_eq!(config.environments.len(), 1);
+        assert_eq!(
+            config.update_topic_overrides_by_account(),
+            expected_overrides_by_account
+        );
+    }
+}

@@ -1,0 +1,33 @@
+{
+  "libpath": "./target/debug/libsolana_accountsdb_plugin_kafka.dylib",
+  "shutdown_timeout_ms": 30000,
+  "update_account_topic": "geyser.mainnet.account_update",
+  "update_account_topic_overrides": {
+    "geyser.mainnet.spl.account_update": [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    ]
+  },
+  "publish_all_accounts": false,
+  "publish_accounts_without_signature": false,
+  "wrap_messages": false,
+  "environments": [
+    {
+      "name": "dev",
+      "program_allowlist_url": "https://some.upstash.io/smembers/supported-programs",
+      "program_allowlist_auth": "Bearer bearertoken",
+      "program_allowlist_expiry_sec": 15,
+      "kafka": {
+        "bootstrap.servers": "some-us1-kafka.upstash.io:9092",
+        "sasl.username": "sasl.user",
+        "sasl.password": "sasl.pass",
+        "sasl.mechanism": "SCRAM-SHA-256",
+        "security.protocol": "SASL_SSL",
+        "request.required.acks": "1",
+        "message.timeout.ms": "30000",
+        "compression.type": "lz4",
+        "partitioner": "murmur2_random"
+      }
+    }
+  ]
+}
