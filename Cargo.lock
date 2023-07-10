@@ -435,7 +435,7 @@ name = "bytemuck_derive"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdde5c9cd29ebd706ce1b35600920a33550e402fc998a2e53ad3b42c3c47a192"
-dependencies = ["proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "byteorder"
@@ -632,7 +632,7 @@ dependencies = [
   "proc-macro2",
   "quote",
   "strsim",
-  "syn 2.0.22",
+  "syn 2.0.25",
 ]
 
 [[package]]
@@ -640,7 +640,7 @@ name = "darling_macro"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29a358ff9f12ec09c3e61fef9b5a9902623a695a46a917b07f269bff1445611a"
-dependencies = ["darling_core", "quote", "syn 2.0.22"]
+dependencies = ["darling_core", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "derivation-path"
@@ -740,7 +740,7 @@ name = "enum-iterator-derive"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eecf8589574ce9b895052fa12d69af7a233f99e6107f5cb8dd1044f2a17bfdcb"
-dependencies = ["proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "env_logger"
@@ -1433,7 +1433,14 @@ name = "num_enum_derive"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
-dependencies = ["proc-macro-crate 1.3.1", "proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["proc-macro-crate 1.3.1", "proc-macro2", "quote", "syn 2.0.25"]
+
+[[package]]
+name = "object"
+version = "0.31.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bda667d9f2b5051b8833f59f3bf748b28ef54f850f4fcb389a252aa383866d1"
+dependencies = ["memchr"]
 
 [[package]]
 name = "once_cell"
@@ -1923,7 +1930,7 @@ name = "scroll_derive"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1db149f81d46d2deba7cd3c50772474707729550221e69588478ebf9ada425ae"
-dependencies = ["proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "sct"
@@ -1940,9 +1947,9 @@ checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 
 [[package]]
 name = "serde"
-version = "1.0.167"
+version = "1.0.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7daf513456463b42aa1d94cff7e0c24d682b429f020b9afa4f5ba5c40a22b237"
+checksum = "30e27d1e4fd7659406c492fd6cfaf2066ba8773de45ca75e855590f856dc34a9"
 dependencies = ["serde_derive"]
 
 [[package]]
@@ -1954,10 +1961,10 @@ dependencies = ["serde"]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.167"
+version = "1.0.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b69b106b68bc8054f0e974e70d19984040f8a5cf9215ca82626ea4853f82c4b9"
-dependencies = ["proc-macro2", "quote", "syn 2.0.22"]
+checksum = "389894603bd18c46fa56231694f8d827779c0951a667087194cf9de94ed24682"
+dependencies = ["proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "serde_json"
@@ -1985,7 +1992,7 @@ name = "serde_with_macros"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "881b6f881b17d13214e5d494c939ebab463d01264ce1811e9d4ac3a882e7695f"
-dependencies = ["darling", "proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["darling", "proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "sha2"
@@ -2192,7 +2199,7 @@ name = "solana-frozen-abi-macro"
 version = "1.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f84be4b6dd2cc4e8ad5baa54a23018c8936ec32322ebcffd88355631700292a"
-dependencies = ["proc-macro2", "quote", "rustc_version", "syn 2.0.22"]
+dependencies = ["proc-macro2", "quote", "rustc_version", "syn 2.0.25"]
 
 [[package]]
 name = "solana-geyser-plugin-interface"
@@ -2369,7 +2376,7 @@ name = "solana-sdk-macro"
 version = "1.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e38a884c027b0759d0969efc1253f3b8798f9d5fbef2eb158cdb70763619d2f3"
-dependencies = ["bs58", "proc-macro2", "quote", "rustversion", "syn 2.0.22"]
+dependencies = ["bs58", "proc-macro2", "quote", "rustversion", "syn 2.0.25"]
 
 [[package]]
 name = "solana-transaction-status"
@@ -2529,9 +2536,9 @@ dependencies = ["proc-macro2", "quote", "unicode-ident"]
 
 [[package]]
 name = "syn"
-version = "2.0.22"
+version = "2.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2efbeae7acf4eabd6bcdcbd11c92f45231ddda7539edc7806bd1a04a03b24616"
+checksum = "15e3fc8c0c74267e2df136e5e5fb656a464158aa57624053375eb9c8c6e25ae2"
 dependencies = ["proc-macro2", "quote", "unicode-ident"]
 
 [[package]]
@@ -2567,7 +2574,7 @@ name = "thiserror-impl"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
-dependencies = ["proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "time"
@@ -2827,7 +2834,7 @@ dependencies = [
   "once_cell",
   "proc-macro2",
   "quote",
-  "syn 2.0.22",
+  "syn 2.0.25",
   "wasm-bindgen-shared",
 ]
 
@@ -2853,7 +2860,7 @@ checksum = "54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b"
 dependencies = [
   "proc-macro2",
   "quote",
-  "syn 2.0.22",
+  "syn 2.0.25",
   "wasm-bindgen-backend",
   "wasm-bindgen-shared",
 ]
@@ -3022,7 +3029,7 @@ name = "zeroize_derive"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
-dependencies = ["proc-macro2", "quote", "syn 2.0.22"]
+dependencies = ["proc-macro2", "quote", "syn 2.0.25"]
 
 [[package]]
 name = "zstd"
