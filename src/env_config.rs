@@ -81,6 +81,6 @@ impl EnvConfig {
         self.set_default("request.required.acks", "1");
         self.set_default("message.timeout.ms", "30000");
         self.set_default("compression.type", "lz4");
-        self.set_default("partitioner", "murmur2_random");
+        self.set_default("partitioner", "random");
     }
 }

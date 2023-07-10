@@ -85,6 +85,12 @@ are added to the `environments` array.
 * **transaction_topic** (`String`)
     * Kafka topic to send transaction updates to.
         * Omit to disable.
+* **update_account_topic_overrides** (`HashMap<String, HashSet<String>>`)
+    * Kafka topic overrides to send specific account updates to. 
+      * Omit to disable. 
+      * The keys are the alternate topics and the value is a collection of program addresses.
+        If an account's owner matches one of those addresses its updates are sent to the
+        alternative topic instead of `[update_account_topic]`.
 * **publish_all_accounts** (`bool`)
     * Publish all accounts on startup.
         * Omit to disable.
@@ -109,6 +115,12 @@ are added to the `environments` array.
   "update_account_topic": "geyser.mainnet.account_update",
   "update_slot_topic": "geyser.mainnet.slot_update",
   "update_transaction_topic": "geyser.mainnet.transaction_update",
+  "update_account_topic_overrides": {
+    "geyser.mainnet.spl.account_update": [
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    ]
+  },
   "publish_all_accounts": false,
   "publish_accounts_without_signature": false,
   "wrap_messages": false,

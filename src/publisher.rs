@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 use log::error;
 
 use crate::message_wrapper::EventMessage;
@@ -32,6 +34,7 @@ pub struct Publisher {
     shutdown_timeout: Duration,
 
     update_account_topic: String,
+    update_account_topic_overrides: HashMap<Vec<u8>, String>,
     slot_status_topic: String,
     transaction_topic: String,
 
@@ -45,6 +48,7 @@ impl Publisher {
             producer,
             shutdown_timeout: Duration::from_millis(config.shutdown_timeout_ms),
             update_account_topic: config.update_account_topic.clone(),
+            update_account_topic_overrides: config.update_topic_overrides_by_account(),
             slot_status_topic: config.slot_status_topic.clone(),
             transaction_topic: config.transaction_topic.clone(),
             wrap_messages: config.wrap_messages,
@@ -52,6 +56,11 @@ impl Publisher {
     }
 
     pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
+        let topic = self
+            .update_account_topic_overrides
+            .get(&ev.owner)
+            .unwrap_or(&self.update_account_topic);
+
         let temp_key;
         let (key, buf) = if self.wrap_messages {
             temp_key = self.copy_and_prepend(ev.owner.as_slice(), 65u8);
@@ -59,9 +68,8 @@ impl Publisher {
         } else {
             (&ev.owner, ev.encode_to_vec())
         };
-        let record = BaseRecord::<Vec<u8>, _>::to(&self.update_account_topic)
-            .key(key)
-            .payload(&buf);
+
+        let record = BaseRecord::<Vec<u8>, _>::to(topic).key(key).payload(&buf);
         self.producer.send(record).map(|_| ()).map_err(|(e, _)| e)
     }
 
