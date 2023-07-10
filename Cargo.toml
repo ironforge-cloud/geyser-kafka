@@ -2,7 +2,11 @@
 name = "solana-accountsdb-plugin-kafka"
 description = "Solana AccountsDb plugin for Kafka"
 authors = ["Blockdaemon"]
+<<<<<<< HEAD
 version = "0.1.5+solana.1.16.1-rc1"
+=======
+version = "0.1.5+solana.1.16.3-rc1"
+>>>>>>> 4350752 (Cargo update, bump to v0.1.5+solana.1.16.3-rc1)
 edition = "2021"
 repository = "https://github.com/ironforge-cloud/geyser-kafka"
 license = "Apache-2.0"
