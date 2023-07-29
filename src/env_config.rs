@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use rdkafka::{
-    config::FromClientConfig, error::KafkaResult, producer::ThreadedProducer, ClientConfig,
+    config::FromClientConfigAndContext, error::KafkaResult, producer::ThreadedProducer,
+    ClientConfig,
 };
 use serde::Deserialize;
 
-use crate::Producer;
+use crate::prom::StatsThreadedProducerContext;
 
 /// Environment specific config.
 #[derive(Deserialize)]
@@ -63,12 +64,12 @@ impl Default for EnvConfig {
 
 impl EnvConfig {
     /// Create rdkafka::FutureProducer from config.
-    pub fn producer(&self) -> KafkaResult<Producer> {
+    pub fn producer(&self) -> KafkaResult<ThreadedProducer<StatsThreadedProducerContext>> {
         let mut config = ClientConfig::new();
         for (k, v) in self.kafka.iter() {
             config.set(k, v);
         }
-        ThreadedProducer::from_config(&config)
+        ThreadedProducer::from_config_and_context(&config, StatsThreadedProducerContext::default())
     }
 
     fn set_default(&mut self, k: &'static str, v: &'static str) {
@@ -81,6 +82,6 @@ impl EnvConfig {
         self.set_default("request.required.acks", "1");
         self.set_default("message.timeout.ms", "30000");
         self.set_default("compression.type", "lz4");
-        self.set_default("partitioner", "random");
+        self.set_default("partitioner", "murmur2_random");
     }
 }

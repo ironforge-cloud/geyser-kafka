@@ -13,7 +13,14 @@
 // limitations under the License.
 
 use {
-    crate::*,
+    crate::{
+        sanitized_message, CompiledInstruction, Config, Filter, FilteringPublisher,
+        InnerInstruction, InnerInstructions, LegacyLoadedMessage, LegacyMessage, LoadedAddresses,
+        MessageAddressTableLookup, MessageHeader, PrometheusService, Publisher, Reward,
+        SanitizedMessage, SanitizedTransaction, SlotStatus, SlotStatusEvent, TransactionEvent,
+        TransactionStatusMeta, TransactionTokenBalance, UiTokenAmount, UpdateAccountEvent,
+        V0LoadedMessage, V0Message,
+    },
     log::{debug, info, log_enabled},
     rdkafka::util::get_rdkafka_version,
     simple_error::simple_error,
@@ -31,6 +38,7 @@ pub struct KafkaPlugin {
     publishers: Option<Vec<FilteringPublisher>>,
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
+    prometheus: Option<PrometheusService>,
 }
 
 impl Debug for KafkaPlugin {
@@ -74,7 +82,11 @@ impl GeyserPlugin for KafkaPlugin {
             let filter = Filter::new(env_config);
             publishers.push(FilteringPublisher::new(publisher, filter))
         }
+        let prometheus = config
+            .create_prometheus()
+            .map_err(|error| PluginError::Custom(Box::new(error)))?;
         self.publishers = Some(publishers);
+        self.prometheus = prometheus;
         info!("Spawned producers");
 
         Ok(())
@@ -82,6 +94,9 @@ impl GeyserPlugin for KafkaPlugin {
 
     fn on_unload(&mut self) {
         self.publishers = None;
+        if let Some(prometheus) = self.prometheus.take() {
+            prometheus.shutdown();
+        }
     }
 
     fn update_account(
