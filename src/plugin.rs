@@ -342,15 +342,18 @@ impl KafkaPlugin {
 
     fn build_transaction_event(
         slot: u64,
-        transaction: &ReplicaTransactionInfoV2,
-    ) -> TransactionEvent {
-        let transaction_status_meta = transaction.transaction_status_meta;
-        let signature = transaction.signature;
-        let is_vote = transaction.is_vote;
-        let transaction = transaction.transaction;
-        TransactionEvent {
+        ReplicaTransactionInfoV2 {
+            signature,
             is_vote,
+            transaction,
+            transaction_status_meta,
+            index,
+        }: &ReplicaTransactionInfoV2,
+    ) -> TransactionEvent {
+        TransactionEvent {
+            is_vote: *is_vote,
             slot,
+            index: *index as u64,
             signature: signature.as_ref().into(),
             transaction_status_meta: Some(TransactionStatusMeta {
                 is_status_err: transaction_status_meta.status.is_err(),
