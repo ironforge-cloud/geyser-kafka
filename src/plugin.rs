@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::publisher::{kafka_publisher::KafkaPublisher, Publisher};
+
 use {
     crate::*,
     log::{debug, info, log_enabled},
@@ -28,7 +30,7 @@ use {
 
 #[derive(Default)]
 pub struct KafkaPlugin {
-    publishers: Option<Vec<FilteringPublisher>>,
+    publishers: Option<Vec<Publisher>>,
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
 }
@@ -70,9 +72,11 @@ impl GeyserPlugin for KafkaPlugin {
                 .map_err(|e| PluginError::Custom(Box::new(e)))?;
             info!("Created rdkafka::FutureProducer");
 
-            let publisher = Publisher::new(producer, &config, env_config.name.to_string());
+            let publisher = KafkaPublisher::new(producer, &config, env_config.name.to_string());
             let filter = Filter::new(env_config);
-            publishers.push(FilteringPublisher::new(publisher, filter))
+            let publisher =
+                Publisher::FilteringPublisher(FilteringPublisher::new(publisher, filter));
+            publishers.push(publisher);
         }
         self.publishers = Some(publishers);
         info!("Spawned producers");
@@ -249,7 +253,7 @@ impl KafkaPlugin {
         Default::default()
     }
 
-    fn unwrap_publishers(&self) -> Vec<&FilteringPublisher> {
+    fn unwrap_publishers(&self) -> Vec<&Publisher> {
         self.publishers
             .as_ref()
             .expect("filtered publishers are unavailable")

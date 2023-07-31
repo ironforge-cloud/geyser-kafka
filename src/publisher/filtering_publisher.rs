@@ -1,16 +1,16 @@
 use rdkafka::error::KafkaError;
 
-use crate::{
-    allowlist::Allowlist, Filter, Publisher, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
-};
+use crate::{allowlist::Allowlist, Filter, SlotStatusEvent, TransactionEvent, UpdateAccountEvent};
+
+use super::kafka_publisher::KafkaPublisher;
 
 pub struct FilteringPublisher {
-    publisher: Publisher,
+    publisher: KafkaPublisher,
     filter: Filter,
 }
 
 impl FilteringPublisher {
-    pub fn new(publisher: Publisher, filter: Filter) -> Self {
+    pub fn new(publisher: KafkaPublisher, filter: Filter) -> Self {
         Self { publisher, filter }
     }
 
