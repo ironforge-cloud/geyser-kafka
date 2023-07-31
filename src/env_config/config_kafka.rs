@@ -7,12 +7,6 @@ use serde::Deserialize;
 
 use crate::Producer;
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-pub enum EnvConfig {
-    Kafka(EnvConfigKafka),
-}
-
 /// Environment specific config.
 #[derive(Deserialize)]
 pub struct EnvConfigKafka {
