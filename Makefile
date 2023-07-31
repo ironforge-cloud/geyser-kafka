@@ -6,7 +6,8 @@ CONFIG=$(DIR)/config.json
 LOG_LEVEL=INFO
 RUST_LOG=solana_accountsdb_plugin_kafka=INFO,solana_geyser_plugin_manager=INFO,DEBUG,ERROR
 
-AMMAN=./node_modules/.bin/amman
+# AMMAN=./node_modules/.bin/amman
+AMMAN=amman_
 
 amman:
 	RUST_LOG=$(RUST_LOG) \
@@ -51,3 +52,6 @@ accounts:
 
 logs:
 	cat $(LEDGER)/validator.log | grep solana_accountsdb_plugin_kafka
+
+logs-tail:
+	tail -f $(LEDGER)/validator.log
