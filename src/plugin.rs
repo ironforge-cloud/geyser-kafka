@@ -67,16 +67,21 @@ impl GeyserPlugin for KafkaPlugin {
 
         let mut publishers = Vec::new();
         for env_config in &config.environments {
-            let producer = env_config
-                .producer()
-                .map_err(|e| PluginError::Custom(Box::new(e)))?;
-            info!("Created rdkafka::FutureProducer");
-
-            let publisher = KafkaPublisher::new(producer, &config, env_config.name.to_string());
             let filter = Filter::new(env_config);
-            let publisher =
-                Publisher::FilteringPublisher(FilteringPublisher::new(publisher, filter));
-            publishers.push(publisher);
+            match env_config {
+                EnvConfig::Kafka(env_config) => {
+                    let producer = env_config
+                        .producer()
+                        .map_err(|e| PluginError::Custom(Box::new(e)))?;
+                    info!("Created rdkafka::FutureProducer");
+
+                    let publisher =
+                        KafkaPublisher::new(producer, &config, env_config.name.to_string());
+                    let publisher =
+                        Publisher::FilteringPublisher(FilteringPublisher::new(publisher, filter));
+                    publishers.push(publisher);
+                }
+            }
         }
         self.publishers = Some(publishers);
         info!("Spawned producers");

@@ -7,9 +7,15 @@ use serde::Deserialize;
 
 use crate::Producer;
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum EnvConfig {
+    Kafka(EnvConfigKafka),
+}
+
 /// Environment specific config.
 #[derive(Deserialize)]
-pub struct EnvConfig {
+pub struct EnvConfigKafka {
     /// Name of the environment
     #[serde(default)]
     pub name: String,
@@ -48,7 +54,7 @@ pub struct EnvConfig {
     pub program_allowlist_expiry_sec: u64,
 }
 
-impl Default for EnvConfig {
+impl Default for EnvConfigKafka {
     fn default() -> Self {
         Self {
             program_allowlist_expiry_sec: 60,
@@ -61,7 +67,7 @@ impl Default for EnvConfig {
     }
 }
 
-impl EnvConfig {
+impl EnvConfigKafka {
     /// Create rdkafka::FutureProducer from config.
     pub fn producer(&self) -> KafkaResult<Producer> {
         let mut config = ClientConfig::new();
