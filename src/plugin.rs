@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::publisher::{kafka_publisher::KafkaPublisher, Publisher};
+use crate::publisher::{kafka_publisher::KafkaPublisher, LocalPublisher, Publisher};
 
 use {
     crate::*,
@@ -81,8 +81,18 @@ impl GeyserPlugin for KafkaPlugin {
                         Publisher::FilteringPublisher(FilteringPublisher::new(publisher, filter));
                     publishers.push(publisher);
                 }
-                EnvConfig::Local(_env_config) => {
-                    todo!()
+                EnvConfig::Local(env_config) => {
+                    let publisher = Publisher::LocalPublisher(LocalPublisher::new(
+                        filter,
+                        &config,
+                        env_config.name.to_string(),
+                        env_config.url.clone(),
+                    ));
+                    info!(
+                        "Created local http publisher '{}', publishing to '{}'",
+                        env_config.name, env_config.url
+                    );
+                    publishers.push(publisher);
                 }
             }
         }

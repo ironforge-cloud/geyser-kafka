@@ -51,7 +51,6 @@ pub struct LocalPublisher {
 }
 
 impl LocalPublisher {
-    #[allow(unused)]
     pub fn new(filter: Filter, config: &Config, env: String, root_url: String) -> Self {
         Self {
             env,
