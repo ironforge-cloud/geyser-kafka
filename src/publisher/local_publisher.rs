@@ -3,7 +3,7 @@ use crate::{
     UpdateAccountEvent,
 };
 
-use log::info;
+use log::debug;
 use serde::Serialize;
 
 // -----------------
@@ -112,9 +112,10 @@ impl LocalPublisher {
     fn publish_event<T: Serialize>(&self, path: &str, ev: &T) -> PluginResult<()> {
         let payload = serde_json::to_vec(ev)?;
         let uri = format!("{}/{}", self.root_url, path);
-        let res = ureq::post(&uri).send_bytes(&payload)?;
-        info!("Published event to {}", uri);
-        info!("res {res:#?}");
+        let res = ureq::post(&uri)
+            .set("Content-Type", "application/json")
+            .send_bytes(&payload)?;
+        debug!("Published event to {}", uri);
         Ok(())
     }
 }
