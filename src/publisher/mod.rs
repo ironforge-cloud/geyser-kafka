@@ -2,10 +2,11 @@ mod filtering_publisher;
 pub mod kafka_publisher;
 mod local_publisher;
 
-use crate::{allowlist::Allowlist, SlotStatusEvent, TransactionEvent, UpdateAccountEvent};
+use crate::{
+    allowlist::Allowlist, PluginResult, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
+};
 pub use filtering_publisher::FilteringPublisher;
 pub use local_publisher::LocalPublisher;
-use rdkafka::error::KafkaError;
 
 pub enum Publisher {
     FilteringPublisher(FilteringPublisher),
@@ -62,24 +63,24 @@ impl Publisher {
         }
     }
 
-    pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
-        match self {
-            Publisher::FilteringPublisher(p) => p.update_account(ev),
-            Publisher::LocalPublisher(p) => p.update_account(ev),
-        }
+    pub fn update_account(&self, ev: UpdateAccountEvent) -> PluginResult<()> {
+        Ok(match self {
+            Publisher::FilteringPublisher(p) => p.update_account(ev)?,
+            Publisher::LocalPublisher(p) => p.update_account(ev)?,
+        })
     }
 
-    pub fn update_slot_status(&self, ev: SlotStatusEvent) -> Result<(), KafkaError> {
-        match self {
-            Publisher::FilteringPublisher(p) => p.update_slot_status(ev),
-            Publisher::LocalPublisher(p) => p.update_slot_status(ev),
-        }
+    pub fn update_slot_status(&self, ev: SlotStatusEvent) -> PluginResult<()> {
+        Ok(match self {
+            Publisher::FilteringPublisher(p) => p.update_slot_status(ev)?,
+            Publisher::LocalPublisher(p) => p.update_slot_status(ev)?,
+        })
     }
 
-    pub fn update_transaction(&self, ev: TransactionEvent) -> Result<(), KafkaError> {
-        match self {
-            Publisher::FilteringPublisher(p) => p.update_transaction(ev),
-            Publisher::LocalPublisher(p) => p.update_transaction(ev),
-        }
+    pub fn update_transaction(&self, ev: TransactionEvent) -> PluginResult<()> {
+        Ok(match self {
+            Publisher::FilteringPublisher(p) => p.update_transaction(ev)?,
+            Publisher::LocalPublisher(p) => p.update_transaction(ev)?,
+        })
     }
 }

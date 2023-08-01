@@ -81,6 +81,9 @@ impl GeyserPlugin for KafkaPlugin {
                         Publisher::FilteringPublisher(FilteringPublisher::new(publisher, filter));
                     publishers.push(publisher);
                 }
+                EnvConfig::Local(_env_config) => {
+                    todo!()
+                }
             }
         }
         self.publishers = Some(publishers);

@@ -78,6 +78,7 @@ impl Allowlist {
 
                 Self::new_from_vec(config.program_allowlist.clone())
             }
+            EnvConfig::Local(config) => Self::new_from_vec(config.program_allowlist.clone()),
         }
     }
 
@@ -299,18 +300,20 @@ impl Allowlist {
 mod tests {
     use std::{thread, time::Duration};
 
+    use crate::env_config::EnvConfigKafka;
+
     use super::*;
     #[test]
     fn test_allowlist_from_vec() {
-        let config = EnvConfig {
+        let config = EnvConfig::Kafka(EnvConfigKafka {
             program_allowlist: vec![
                 "Sysvar1111111111111111111111111111111111111".to_owned(),
                 "Vote111111111111111111111111111111111111111".to_owned(),
             ],
-            ..EnvConfig::default()
-        };
+            ..EnvConfigKafka::default()
+        });
 
-        let allowlist = Allowlist::new_from_vec(config.program_allowlist).unwrap();
+        let allowlist = Allowlist::new_from_vec(config.program_allowlist().to_vec()).unwrap();
         assert_eq!(allowlist.len(), 2);
 
         assert!(allowlist.wants_program(
@@ -340,12 +343,12 @@ mod tests {
             .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
             .create();
 
-        let config = EnvConfig {
+        let config = EnvConfig::Kafka(EnvConfigKafka {
             program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
             program_allowlist_expiry_sec: 3,
             program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
-            ..EnvConfig::default()
-        };
+            ..EnvConfigKafka::default()
+        });
 
         let mut allowlist = Allowlist::new_from_config(&config).unwrap();
         let now = std::time::Instant::now();

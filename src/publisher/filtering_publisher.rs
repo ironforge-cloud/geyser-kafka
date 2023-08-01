@@ -22,7 +22,7 @@ impl FilteringPublisher {
     }
 
     pub fn wants_account_key(&self, account_key: &[u8]) -> bool {
-        self.filter.wants_account_key(account_key)
+        self.filter.wants_account_key(account_key, false)
     }
 
     // -----------------
