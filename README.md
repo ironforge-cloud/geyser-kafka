@@ -41,6 +41,9 @@ This config needs to be added per environment. Thus using different allow list s
 different Kafka clusters is possible. Each item in the `environments` array is an `EnvConfig`
 and follows the below schema.
 
+An environment config for local development and testing also can be provided, please see 
+_Local Environment Config Values_ below.
+
 * **name** (`String`)
     * Name of the environment
 * **kafka** (`HashMap<String, String>`)
@@ -158,10 +161,42 @@ are added to the `environments` array.
         "compression.type": "lz4",
         "partitioner": "random"
       }
+    },
+    {
+      "name": "local",
+      "url": "http://localhost:9999",
+      "include_system_accounts": false
     }
   ]
 }
 ```
+### Local Environment Config Values
+
+In order to facilitate local development and testing the plugin itself a `local` environment
+can be configured. Mainly it switches out how events are published. Instead of publishing to
+Kafka they are published to the configured URL using the respective topic as the path appended
+to that URL.
+
+**NOTE**: this should only be used when running the Geyser plugin with a local solana test
+validator as it publishes events over HTTP synchronously which will cause performance issues
+when used with a live cluster.
+
+In the above example account updates would be published to
+`http://localhost:9999/geyser.mainnet.account_update`.
+
+Tools like [geyser-store](https://github.com/ironforge-cloud/geyser-store) can be used to to
+trace and store events locally for further analysis or to allow checking them in tests.
+
+* **name**: The name of the environment.
+* **program_allowlist**: A list of programs whose accounts should be published. If empty, all
+  accounts are published including system program accounts unless `include_system_accounts` is
+  `false`
+* **url**: The URL to publish to.
+* **include_system_accounts**: If `true`, then all system accounts are included when no `program_allowlist` is set. Otherwise, the following accounts are ignored:
+    * System Program: `11111111111111111111111111111111`
+    * BPF Loader: `BPFLoaderUpgradeab1e1111111111111111111111`
+    * Vote Program: `Vote111111111111111111111111111111111111111`
+    * Config Program: `Config1111111111111111111111111111111111111`
 
 ### Message Keys
 
