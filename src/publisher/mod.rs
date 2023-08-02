@@ -64,23 +64,26 @@ impl Publisher {
     }
 
     pub fn update_account(&self, ev: UpdateAccountEvent) -> PluginResult<()> {
-        Ok(match self {
+        match self {
             Publisher::FilteringPublisher(p) => p.update_account(ev)?,
             Publisher::LocalPublisher(p) => p.update_account(ev)?,
-        })
+        }
+        Ok(())
     }
 
     pub fn update_slot_status(&self, ev: SlotStatusEvent) -> PluginResult<()> {
-        Ok(match self {
+        match self {
             Publisher::FilteringPublisher(p) => p.update_slot_status(ev)?,
             Publisher::LocalPublisher(p) => p.update_slot_status(ev)?,
-        })
+        }
+        Ok(())
     }
 
     pub fn update_transaction(&self, ev: TransactionEvent) -> PluginResult<()> {
-        Ok(match self {
+        match self {
             Publisher::FilteringPublisher(p) => p.update_transaction(ev)?,
             Publisher::LocalPublisher(p) => p.update_transaction(ev)?,
-        })
+        }
+        Ok(())
     }
 }
