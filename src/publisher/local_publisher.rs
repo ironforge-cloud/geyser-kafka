@@ -2,6 +2,8 @@ use crate::{
     allowlist::Allowlist, Config, Filter, PluginResult, SlotStatusEvent, TransactionEvent,
     UpdateAccountEvent,
 };
+use solana_program::pubkey::Pubkey;
+use std::{collections::HashSet, str::FromStr};
 
 use log::debug;
 use serde::Serialize;
@@ -37,6 +39,15 @@ impl From<UpdateAccountEvent> for SerializableUpdateAccountEvent {
         }
     }
 }
+// -----------------
+// System Program List
+// -----------------
+const SYSTEM_PROGRAMS: [&str; 4] = [
+    "11111111111111111111111111111111",
+    "BPFLoaderUpgradeab1e11111111111111111111111",
+    "Vote111111111111111111111111111111111111111",
+    "Config1111111111111111111111111111111111111",
+];
 
 // -----------------
 // LocalPublisher
@@ -48,10 +59,22 @@ pub struct LocalPublisher {
     update_slot_status_path: String,
     update_transaction_path: String,
     root_url: String,
+    include_system_accounts: bool,
+    system_programs: HashSet<[u8; 32]>,
 }
 
 impl LocalPublisher {
-    pub fn new(filter: Filter, config: &Config, env: String, root_url: String) -> Self {
+    pub fn new(
+        filter: Filter,
+        config: &Config,
+        env: String,
+        root_url: String,
+        include_system_accounts: bool,
+    ) -> Self {
+        let system_programs = SYSTEM_PROGRAMS
+            .iter()
+            .map(|s| Pubkey::from_str(s).unwrap().to_bytes())
+            .collect::<HashSet<_>>();
         Self {
             env,
             update_account_path: config.update_account_topic.clone(),
@@ -59,6 +82,8 @@ impl LocalPublisher {
             update_transaction_path: config.transaction_topic.clone(),
             root_url,
             filter,
+            include_system_accounts,
+            system_programs,
         }
     }
 
@@ -70,6 +95,10 @@ impl LocalPublisher {
     }
 
     pub fn wants_account_key(&self, account_key: &[u8]) -> bool {
+        if self.filter.allow_list_is_empty() && !self.include_system_accounts {
+            let slice: &[u8; 32] = account_key[0..32].try_into().unwrap();
+            return !self.system_programs.contains(slice);
+        }
         self.filter.wants_account_key(account_key, true)
     }
 
@@ -112,7 +141,7 @@ impl LocalPublisher {
     fn publish_event<T: Serialize>(&self, path: &str, ev: &T) -> PluginResult<()> {
         let payload = serde_json::to_vec(ev)?;
         let uri = format!("{}/{}", self.root_url, path);
-        let res = ureq::post(&uri)
+        ureq::post(&uri)
             .set("Content-Type", "application/json")
             .send_bytes(&payload)?;
         debug!("Published event to {}", uri);

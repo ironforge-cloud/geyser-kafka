@@ -87,6 +87,7 @@ impl GeyserPlugin for KafkaPlugin {
                         &config,
                         env_config.name.to_string(),
                         env_config.url.clone(),
+                        env_config.include_system_accounts,
                     ));
                     info!(
                         "Created local http publisher '{}', publishing to '{}'",

@@ -31,6 +31,10 @@ impl Filter {
         self.program_allowlist.clone()
     }
 
+    pub fn allow_list_is_empty(&self) -> bool {
+        self.program_allowlist.len() == 0
+    }
+
     pub fn wants_account_key(
         &self,
         account_key: &[u8],
