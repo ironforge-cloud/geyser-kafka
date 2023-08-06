@@ -2739,7 +2739,7 @@ dependencies = [
 
 [[package]]
 name = "solana-accountsdb-plugin-kafka"
-version = "0.1.6+solana.1.16.6-rc1"
+version = "0.1.6+solana.1.16.7-rc1"
 dependencies = [
  "anyhow",
  "cargo-lock",
