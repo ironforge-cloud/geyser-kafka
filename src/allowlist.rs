@@ -37,45 +37,49 @@ struct RemoteAllowlist {
     program_allowlist: Vec<String>,
 }
 
-// new() is a constructor for Allowlist
 impl Allowlist {
     pub fn len(&self) -> usize {
         let list = self.list.lock().unwrap();
         list.len()
     }
     pub fn new_from_config(config: &EnvConfig) -> PluginResult<Self> {
-        // Users can provide a URL to fetch the allow list from
-        if !config.program_allowlist_url.is_empty() {
-            let mut this = Self::new_from_http(
-                &config.program_allowlist_url.clone(),
-                &config.program_allowlist_auth.clone(),
-                std::time::Duration::from_secs(config.program_allowlist_expiry_sec),
-            )
-            .unwrap();
+        match config {
+            EnvConfig::Kafka(config) => {
+                // Users can provide a URL to fetch the allow list from
+                if !config.program_allowlist_url.is_empty() {
+                    let mut this = Self::new_from_http(
+                        &config.program_allowlist_url.clone(),
+                        &config.program_allowlist_auth.clone(),
+                        std::time::Duration::from_secs(config.program_allowlist_expiry_sec),
+                    )
+                    .unwrap();
 
-            if !config.program_allowlist.is_empty() {
-                // The allowlist to start with can be defined in the config
-                this.push_vec(config.program_allowlist.clone());
-            } else {
-                // Otherwise, fetch it from the provided url
-                this.init_list_from_http_blocking(
-                    &config.program_allowlist_url,
-                    &config.program_allowlist_auth,
-                )?;
+                    if !config.program_allowlist.is_empty() {
+                        // The allowlist to start with can be defined in the config
+                        this.push_vec(config.program_allowlist.clone());
+                    } else {
+                        // Otherwise, fetch it from the provided url
+                        this.init_list_from_http_blocking(
+                            &config.program_allowlist_url,
+                            &config.program_allowlist_auth,
+                        )?;
+                    }
+
+                    return Ok(this);
+                }
+
+                // If no url is provided, then the allowlist needs to be defined in the config
+                if config.program_allowlist.is_empty() {
+                    return Err(PluginError::Custom(Box::new(SimpleError::new(
+                        "Need to provide a program allowlist provided or a URL to fetch it from"
+                            .to_string(),
+                    ))));
+                }
+
+                Self::new_from_vec(config.program_allowlist.clone())
             }
-
-            return Ok(this);
+            EnvConfig::Local(config) => Self::new_from_vec(config.program_allowlist.clone()),
         }
-
-        // If no url is provided, then the allowlist needs to be defined in the config
-        if config.program_allowlist.is_empty() {
-            return Err(PluginError::Custom(Box::new(SimpleError::new(
-                "Need to provide a program allowlist provided or a URL to fetch it from"
-                    .to_string(),
-            ))));
-        }
-
-        Self::new_from_vec(config.program_allowlist.clone())
     }
 
     /// new_from_vec creates a new Allowlist from a vector of program ids.
@@ -296,18 +300,20 @@ impl Allowlist {
 mod tests {
     use std::{thread, time::Duration};
 
+    use crate::env_config::EnvConfigKafka;
+
     use super::*;
     #[test]
     fn test_allowlist_from_vec() {
-        let config = EnvConfig {
+        let config = EnvConfig::Kafka(EnvConfigKafka {
             program_allowlist: vec![
                 "Sysvar1111111111111111111111111111111111111".to_owned(),
                 "Vote111111111111111111111111111111111111111".to_owned(),
             ],
-            ..EnvConfig::default()
-        };
+            ..EnvConfigKafka::default()
+        });
 
-        let allowlist = Allowlist::new_from_vec(config.program_allowlist).unwrap();
+        let allowlist = Allowlist::new_from_vec(config.program_allowlist().to_vec()).unwrap();
         assert_eq!(allowlist.len(), 2);
 
         assert!(allowlist.wants_program(
@@ -337,12 +343,12 @@ mod tests {
             .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
             .create();
 
-        let config = EnvConfig {
+        let config = EnvConfig::Kafka(EnvConfigKafka {
             program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
             program_allowlist_expiry_sec: 3,
             program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
-            ..EnvConfig::default()
-        };
+            ..EnvConfigKafka::default()
+        });
 
         let mut allowlist = Allowlist::new_from_config(&config).unwrap();
         let now = std::time::Instant::now();

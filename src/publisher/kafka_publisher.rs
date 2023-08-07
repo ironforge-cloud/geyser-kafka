@@ -28,7 +28,7 @@ use {
     std::time::Duration,
 };
 
-pub struct Publisher {
+pub struct KafkaPublisher {
     pub(crate) env: String,
     producer: Producer,
     shutdown_timeout: Duration,
@@ -41,7 +41,7 @@ pub struct Publisher {
     wrap_messages: bool,
 }
 
-impl Publisher {
+impl KafkaPublisher {
     pub fn new(producer: Producer, config: &Config, env: String) -> Self {
         Self {
             env,
@@ -132,7 +132,7 @@ impl Publisher {
     }
 }
 
-impl Drop for Publisher {
+impl Drop for KafkaPublisher {
     fn drop(&mut self) {
         if let Err(e) = self.producer.flush(self.shutdown_timeout) {
             error!("Failed to flush producer: {}", e);

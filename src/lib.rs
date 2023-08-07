@@ -21,20 +21,20 @@ use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 mod allowlist;
 mod config;
 mod env_config;
+mod errors;
 mod event;
 mod filter;
-mod filtering_publisher;
 mod plugin;
 mod publisher;
 
 pub use {
     config::{Config, Producer},
     env_config::EnvConfig,
+    errors::*,
     event::*,
     filter::Filter,
-    filtering_publisher::FilteringPublisher,
     plugin::KafkaPlugin,
-    publisher::Publisher,
+    publisher::FilteringPublisher,
 };
 
 #[no_mangle]

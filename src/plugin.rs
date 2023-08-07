@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::publisher::{kafka_publisher::KafkaPublisher, LocalPublisher, Publisher};
+
 use {
     crate::*,
     log::{debug, info, log_enabled},
@@ -28,7 +30,7 @@ use {
 
 #[derive(Default)]
 pub struct KafkaPlugin {
-    publishers: Option<Vec<FilteringPublisher>>,
+    publishers: Option<Vec<Publisher>>,
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
 }
@@ -65,14 +67,35 @@ impl GeyserPlugin for KafkaPlugin {
 
         let mut publishers = Vec::new();
         for env_config in &config.environments {
-            let producer = env_config
-                .producer()
-                .map_err(|e| PluginError::Custom(Box::new(e)))?;
-            info!("Created rdkafka::FutureProducer");
-
-            let publisher = Publisher::new(producer, &config, env_config.name.to_string());
             let filter = Filter::new(env_config);
-            publishers.push(FilteringPublisher::new(publisher, filter))
+            match env_config {
+                EnvConfig::Kafka(env_config) => {
+                    let producer = env_config
+                        .producer()
+                        .map_err(|e| PluginError::Custom(Box::new(e)))?;
+                    info!("Created rdkafka::FutureProducer");
+
+                    let publisher =
+                        KafkaPublisher::new(producer, &config, env_config.name.to_string());
+                    let publisher =
+                        Publisher::FilteringPublisher(FilteringPublisher::new(publisher, filter));
+                    publishers.push(publisher);
+                }
+                EnvConfig::Local(env_config) => {
+                    let publisher = Publisher::LocalPublisher(LocalPublisher::new(
+                        filter,
+                        &config,
+                        env_config.name.to_string(),
+                        env_config.url.clone(),
+                        env_config.include_system_accounts,
+                    ));
+                    info!(
+                        "Created local http publisher '{}', publishing to '{}'",
+                        env_config.name, env_config.url
+                    );
+                    publishers.push(publisher);
+                }
+            }
         }
         self.publishers = Some(publishers);
         info!("Spawned producers");
@@ -249,7 +272,7 @@ impl KafkaPlugin {
         Default::default()
     }
 
-    fn unwrap_publishers(&self) -> Vec<&FilteringPublisher> {
+    fn unwrap_publishers(&self) -> Vec<&Publisher> {
         self.publishers
             .as_ref()
             .expect("filtered publishers are unavailable")

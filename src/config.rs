@@ -106,7 +106,9 @@ impl Config {
         let mut this: Self = serde_json::from_reader(file)
             .map_err(|e| GeyserPluginError::ConfigFileReadError { msg: e.to_string() })?;
         for env_config in this.environments.iter_mut() {
-            env_config.fill_defaults();
+            if let EnvConfig::Kafka(env_config) = env_config {
+                env_config.fill_defaults();
+            }
         }
         Ok(this)
     }
