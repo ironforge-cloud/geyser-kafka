@@ -8,37 +8,10 @@ use std::{collections::HashSet, str::FromStr};
 use log::debug;
 use serde::Serialize;
 
-// -----------------
-// Serializable Events
-// -----------------
-#[derive(Serialize)]
-pub struct SerializableUpdateAccountEvent {
-    slot: u64,
-    pubkey: Vec<u8>,
-    lamports: u64,
-    owner: Vec<u8>,
-    executable: bool,
-    rent_epoch: u64,
-    data: Vec<u8>,
-    write_version: u64,
-    txn_signature: Option<Vec<u8>>,
-}
+use super::serializable_events::{
+    SerializableSlotStatusEvent, SerializableTransactionEvent, SerializableUpdateAccountEvent,
+};
 
-impl From<UpdateAccountEvent> for SerializableUpdateAccountEvent {
-    fn from(ev: UpdateAccountEvent) -> Self {
-        Self {
-            slot: ev.slot,
-            pubkey: ev.pubkey,
-            lamports: ev.lamports,
-            owner: ev.owner,
-            executable: ev.executable,
-            rent_epoch: ev.rent_epoch,
-            data: ev.data,
-            write_version: ev.write_version,
-            txn_signature: ev.txn_signature,
-        }
-    }
-}
 // -----------------
 // System Program List
 // -----------------
@@ -128,14 +101,18 @@ impl LocalPublisher {
         )
     }
 
-    pub fn update_slot_status(&self, _ev: SlotStatusEvent) -> PluginResult<()> {
-        todo!()
-        // self.publish_event(&self.update_slot_status_path, &ev)
+    pub fn update_slot_status(&self, ev: SlotStatusEvent) -> PluginResult<()> {
+        self.publish_event(
+            &self.update_slot_status_path,
+            &SerializableSlotStatusEvent::from(ev),
+        )
     }
 
-    pub fn update_transaction(&self, _ev: TransactionEvent) -> PluginResult<()> {
-        todo!()
-        // self.publish_event(&self.update_transaction_path, &ev)
+    pub fn update_transaction(&self, ev: TransactionEvent) -> PluginResult<()> {
+        self.publish_event(
+            &self.update_transaction_path,
+            &SerializableTransactionEvent::from(ev),
+        )
     }
 
     fn publish_event<T: Serialize>(&self, path: &str, ev: &T) -> PluginResult<()> {
