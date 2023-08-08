@@ -6,14 +6,14 @@ pub type PluginResult<T> = Result<T, PluginError>;
 #[derive(Error, Debug)]
 pub enum PluginError {
     #[error("TryFromSliceError ({0})")]
-    TryFromSliceError(#[from] TryFromSliceError),
+    TryFromSliceError(#[from] Box<TryFromSliceError>),
 
     #[error("SerdeJsonError ({0})")]
-    SerdeJsonError(#[from] serde_json::Error),
+    SerdeJsonError(#[from] Box<serde_json::Error>),
 
     #[error("KafkaError ({0})")]
-    KafkaError(#[from] rdkafka::error::KafkaError),
+    KafkaError(#[from] Box<rdkafka::error::KafkaError>),
 
     #[error("UreqError ({0})")]
-    UreqError(#[from] ureq::Error),
+    UreqError(#[from] Box<ureq::Error>),
 }

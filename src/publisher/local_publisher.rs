@@ -139,11 +139,12 @@ impl LocalPublisher {
     }
 
     fn publish_event<T: Serialize>(&self, path: &str, ev: &T) -> PluginResult<()> {
-        let payload = serde_json::to_vec(ev)?;
+        let payload = serde_json::to_vec(ev).map_err(Box::new)?;
         let uri = format!("{}/{}", self.root_url, path);
         ureq::post(&uri)
             .set("Content-Type", "application/json")
-            .send_bytes(&payload)?;
+            .send_bytes(&payload)
+            .map_err(Box::new)?;
         debug!("Published event to {}", uri);
         Ok(())
     }

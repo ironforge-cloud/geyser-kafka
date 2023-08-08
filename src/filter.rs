@@ -13,8 +13,7 @@
 // limitations under the License.
 
 use crate::allowlist::Allowlist;
-
-use crate::*;
+use crate::EnvConfig;
 
 pub struct Filter {
     program_allowlist: Allowlist,

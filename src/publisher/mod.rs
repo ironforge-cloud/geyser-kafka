@@ -65,7 +65,7 @@ impl Publisher {
 
     pub fn update_account(&self, ev: UpdateAccountEvent) -> PluginResult<()> {
         match self {
-            Publisher::FilteringPublisher(p) => p.update_account(ev)?,
+            Publisher::FilteringPublisher(p) => p.update_account(ev).map_err(Box::new)?,
             Publisher::LocalPublisher(p) => p.update_account(ev)?,
         }
         Ok(())
@@ -73,7 +73,7 @@ impl Publisher {
 
     pub fn update_slot_status(&self, ev: SlotStatusEvent) -> PluginResult<()> {
         match self {
-            Publisher::FilteringPublisher(p) => p.update_slot_status(ev)?,
+            Publisher::FilteringPublisher(p) => p.update_slot_status(ev).map_err(Box::new)?,
             Publisher::LocalPublisher(p) => p.update_slot_status(ev)?,
         }
         Ok(())
@@ -81,7 +81,7 @@ impl Publisher {
 
     pub fn update_transaction(&self, ev: TransactionEvent) -> PluginResult<()> {
         match self {
-            Publisher::FilteringPublisher(p) => p.update_transaction(ev)?,
+            Publisher::FilteringPublisher(p) => p.update_transaction(ev).map_err(Box::new)?,
             Publisher::LocalPublisher(p) => p.update_transaction(ev)?,
         }
         Ok(())
