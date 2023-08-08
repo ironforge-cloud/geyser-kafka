@@ -16,7 +16,7 @@ use std::str::FromStr;
 
 use solana_program::pubkey::Pubkey;
 
-use crate::EnvConfig;
+use crate::{Cluster, EnvConfig};
 
 use {
     crate::PrometheusService,
@@ -37,6 +37,9 @@ use {
 /// Plugin config.
 #[derive(Deserialize)]
 pub struct Config {
+    #[serde(default = "Cluster::default")]
+    pub cluster: Cluster,
+
     /// Time the plugin is given to flush out all messages to Kafka
     /// and gracefully shutdown upon exit request.
     #[serde(default)]
@@ -91,6 +94,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            cluster: Cluster::default(),
             shutdown_timeout_ms: 30_000,
             update_account_topic: Default::default(),
             update_account_topic_overrides: Default::default(),

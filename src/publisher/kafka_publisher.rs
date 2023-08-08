@@ -14,6 +14,8 @@
 
 use std::collections::HashMap;
 
+use solana_program::pubkey::Pubkey;
+
 use {
     crate::{
         message_wrapper::EventMessage::{self, Account, Slot, Transaction},
@@ -21,7 +23,7 @@ use {
             StatsThreadedProducerContext, UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL,
             UPLOAD_TRANSACTIONS_TOTAL,
         },
-        Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
+        Cluster, Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
     },
     log::error,
     prost::Message,
@@ -35,6 +37,7 @@ use {
 pub struct KafkaPublisher {
     pub(crate) env: String,
     producer: ThreadedProducer<StatsThreadedProducerContext>,
+    cluster: Cluster,
     shutdown_timeout: Duration,
 
     update_account_topic: String,
@@ -53,6 +56,7 @@ impl KafkaPublisher {
     ) -> Self {
         Self {
             env,
+            cluster: config.cluster.clone(),
             producer,
             shutdown_timeout: Duration::from_millis(config.shutdown_timeout_ms),
             update_account_topic: config.update_account_topic.clone(),
@@ -71,10 +75,13 @@ impl KafkaPublisher {
 
         let temp_key;
         let (key, buf) = if self.wrap_messages {
-            temp_key = self.copy_and_prepend(ev.owner.as_slice(), 65u8);
+            let key = self.account_update_key(&ev.owner);
+            temp_key = self.copy_and_prepend(key.as_bytes(), 65u8);
             (&temp_key, Self::encode_with_wrapper(Account(Box::new(ev))))
         } else {
-            (&ev.owner, ev.encode_to_vec())
+            let key = self.account_update_key(&ev.owner);
+            temp_key = key.as_bytes().to_vec();
+            (&temp_key, ev.encode_to_vec())
         };
         let record = BaseRecord::<Vec<u8>, _>::to(topic).key(key).payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
@@ -148,6 +155,11 @@ impl KafkaPublisher {
         temp_key.push(prefix);
         temp_key.extend_from_slice(data);
         temp_key
+    }
+
+    fn account_update_key(&self, owner: &[u8]) -> String {
+        // SAFETY: we don't expect the RPC to provide us invalid pubkeys ever
+        format!("{}:{}", self.cluster, Pubkey::try_from(owner).unwrap())
     }
 }
 
