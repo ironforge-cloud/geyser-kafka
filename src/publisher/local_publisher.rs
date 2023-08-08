@@ -39,6 +39,42 @@ impl From<UpdateAccountEvent> for SerializableUpdateAccountEvent {
         }
     }
 }
+
+#[derive(Serialize)]
+pub enum SerializableSlotStatus {
+    Processed,
+    Rooted,
+    Confirmed,
+}
+
+impl From<i32> for SerializableSlotStatus {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => Self::Processed,
+            1 => Self::Rooted,
+            2 => Self::Confirmed,
+            _ => panic!("Invalid slot status"),
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct SerializableSlotStatusEvent {
+    slot: u64,
+    parent: u64,
+    status: SerializableSlotStatus,
+}
+
+impl From<SlotStatusEvent> for SerializableSlotStatusEvent {
+    fn from(ev: SlotStatusEvent) -> Self {
+        Self {
+            slot: ev.slot,
+            parent: ev.parent,
+            status: SerializableSlotStatus::from(ev.status),
+        }
+    }
+}
+
 // -----------------
 // System Program List
 // -----------------
@@ -128,9 +164,11 @@ impl LocalPublisher {
         )
     }
 
-    pub fn update_slot_status(&self, _ev: SlotStatusEvent) -> PluginResult<()> {
-        todo!()
-        // self.publish_event(&self.update_slot_status_path, &ev)
+    pub fn update_slot_status(&self, ev: SlotStatusEvent) -> PluginResult<()> {
+        self.publish_event(
+            &self.update_slot_status_path,
+            &SerializableSlotStatusEvent::from(ev),
+        )
     }
 
     pub fn update_transaction(&self, _ev: TransactionEvent) -> PluginResult<()> {
