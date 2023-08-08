@@ -25,7 +25,9 @@ mod errors;
 mod event;
 mod filter;
 mod plugin;
+mod prom;
 mod publisher;
+mod version;
 
 pub use {
     config::{Config, Producer},
@@ -34,6 +36,7 @@ pub use {
     event::*,
     filter::Filter,
     plugin::KafkaPlugin,
+    prom::PrometheusService,
     publisher::FilteringPublisher,
 };
 

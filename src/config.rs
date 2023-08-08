@@ -19,6 +19,7 @@ use solana_program::pubkey::Pubkey;
 use crate::EnvConfig;
 
 use {
+    crate::PrometheusService,
     rdkafka::producer::{DefaultProducerContext, ThreadedProducer},
     serde::Deserialize,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
@@ -27,6 +28,8 @@ use {
     std::{
         collections::{HashMap, HashSet},
         fs::File,
+        io::Result as IoResult,
+        net::SocketAddr,
         path::Path,
     },
 };
@@ -77,10 +80,12 @@ pub struct Config {
     /// Wrap all messages in a unified wrapper object. Omit to disable.
     #[serde(default)]
     pub wrap_messages: bool,
-
     #[serde(default)]
     /// Kafka cluster and allow list configs for different environments. See [EnvConfig].
     pub environments: Vec<EnvConfig>,
+    /// Prometheus endpoint.
+    #[serde(default)]
+    pub prometheus: Option<SocketAddr>,
 }
 
 impl Default for Config {
@@ -95,6 +100,7 @@ impl Default for Config {
             publish_accounts_without_signature: Default::default(),
             wrap_messages: Default::default(),
             environments: Default::default(),
+            prometheus: None,
         }
     }
 }
@@ -125,6 +131,10 @@ impl Config {
             }
         }
         map
+    }
+
+    pub fn create_prometheus(&self) -> IoResult<Option<PrometheusService>> {
+        self.prometheus.map(PrometheusService::new).transpose()
     }
 }
 
