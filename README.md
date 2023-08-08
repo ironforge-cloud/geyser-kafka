@@ -109,6 +109,9 @@ are added to the `environments` array.
     * Kafka cluster and allow list configs for different environments.
         * See [EnvConfig].
 
+* **prometheus**: (`String`)
+  * _Optional_ Prometheus endpoint, if provided metrics will be sent there
+
 ### Example Config
 
 ```json
