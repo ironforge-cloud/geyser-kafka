@@ -8,72 +8,9 @@ use std::{collections::HashSet, str::FromStr};
 use log::debug;
 use serde::Serialize;
 
-// -----------------
-// Serializable Events
-// -----------------
-#[derive(Serialize)]
-pub struct SerializableUpdateAccountEvent {
-    slot: u64,
-    pubkey: Vec<u8>,
-    lamports: u64,
-    owner: Vec<u8>,
-    executable: bool,
-    rent_epoch: u64,
-    data: Vec<u8>,
-    write_version: u64,
-    txn_signature: Option<Vec<u8>>,
-}
-
-impl From<UpdateAccountEvent> for SerializableUpdateAccountEvent {
-    fn from(ev: UpdateAccountEvent) -> Self {
-        Self {
-            slot: ev.slot,
-            pubkey: ev.pubkey,
-            lamports: ev.lamports,
-            owner: ev.owner,
-            executable: ev.executable,
-            rent_epoch: ev.rent_epoch,
-            data: ev.data,
-            write_version: ev.write_version,
-            txn_signature: ev.txn_signature,
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub enum SerializableSlotStatus {
-    Processed,
-    Rooted,
-    Confirmed,
-}
-
-impl From<i32> for SerializableSlotStatus {
-    fn from(value: i32) -> Self {
-        match value {
-            0 => Self::Processed,
-            1 => Self::Rooted,
-            2 => Self::Confirmed,
-            _ => panic!("Invalid slot status"),
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct SerializableSlotStatusEvent {
-    slot: u64,
-    parent: u64,
-    status: SerializableSlotStatus,
-}
-
-impl From<SlotStatusEvent> for SerializableSlotStatusEvent {
-    fn from(ev: SlotStatusEvent) -> Self {
-        Self {
-            slot: ev.slot,
-            parent: ev.parent,
-            status: SerializableSlotStatus::from(ev.status),
-        }
-    }
-}
+use super::serializable_events::{
+    SerializableSlotStatusEvent, SerializableTransactionEvent, SerializableUpdateAccountEvent,
+};
 
 // -----------------
 // System Program List
@@ -171,9 +108,11 @@ impl LocalPublisher {
         )
     }
 
-    pub fn update_transaction(&self, _ev: TransactionEvent) -> PluginResult<()> {
-        todo!()
-        // self.publish_event(&self.update_transaction_path, &ev)
+    pub fn update_transaction(&self, ev: TransactionEvent) -> PluginResult<()> {
+        self.publish_event(
+            &self.update_transaction_path,
+            &SerializableTransactionEvent::from(ev),
+        )
     }
 
     fn publish_event<T: Serialize>(&self, path: &str, ev: &T) -> PluginResult<()> {
