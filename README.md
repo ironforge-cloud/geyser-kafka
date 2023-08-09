@@ -76,6 +76,10 @@ _Local Environment Config Values_ below.
 The below config values are global and apply to all environments. Environment specific settings
 are added to the `environments` array.
 
+* **cluster** (`String`)
+    * The cluster value to include in messages such that Kafka event receivers have context
+      regarding updates (implemented for account updates only for now).
+    * possible values `mainnet|devnet|testnet` (default: `mainnet`)
 * **shutdown_timeout_ms** (`u64`)
     * Time the plugin is given to flush out all messages to Kafka
         * and gracefully shutdown upon exit request.
@@ -117,6 +121,7 @@ are added to the `environments` array.
 ```json
 {
   "libpath": "/home/solana/geyser-kafka/target/release/libsolana_accountsdb_plugin_kafka.so",
+  "cluster": "mainnet",
   "shutdown_timeout_ms": 30000,
   "update_account_topic": "geyser.mainnet.account_update",
   "update_slot_topic": "geyser.mainnet.slot_update",
