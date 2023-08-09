@@ -19,6 +19,7 @@
 use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 
 mod allowlist;
+mod cluster;
 mod config;
 mod env_config;
 mod errors;
@@ -30,6 +31,7 @@ mod publisher;
 mod version;
 
 pub use {
+    cluster::Cluster,
     config::{Config, Producer},
     env_config::EnvConfig,
     errors::*,

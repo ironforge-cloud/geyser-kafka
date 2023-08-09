@@ -14,6 +14,9 @@
 
 use std::collections::HashMap;
 
+use rdkafka::message::{Header, OwnedHeaders};
+use solana_program::pubkey::Pubkey;
+
 use {
     crate::{
         message_wrapper::EventMessage::{self, Account, Slot, Transaction},
@@ -21,7 +24,7 @@ use {
             StatsThreadedProducerContext, UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL,
             UPLOAD_TRANSACTIONS_TOTAL,
         },
-        Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
+        Cluster, Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
     },
     log::error,
     prost::Message,
@@ -35,6 +38,7 @@ use {
 pub struct KafkaPublisher {
     pub(crate) env: String,
     producer: ThreadedProducer<StatsThreadedProducerContext>,
+    cluster: Cluster,
     shutdown_timeout: Duration,
 
     update_account_topic: String,
@@ -53,6 +57,7 @@ impl KafkaPublisher {
     ) -> Self {
         Self {
             env,
+            cluster: config.cluster.clone(),
             producer,
             shutdown_timeout: Duration::from_millis(config.shutdown_timeout_ms),
             update_account_topic: config.update_account_topic.clone(),
@@ -69,14 +74,11 @@ impl KafkaPublisher {
             .get(&ev.owner)
             .unwrap_or(&self.update_account_topic);
 
-        let temp_key;
-        let (key, buf) = if self.wrap_messages {
-            temp_key = self.copy_and_prepend(ev.owner.as_slice(), 65u8);
-            (&temp_key, Self::encode_with_wrapper(Account(Box::new(ev))))
-        } else {
-            (&ev.owner, ev.encode_to_vec())
-        };
-        let record = BaseRecord::<Vec<u8>, _>::to(topic).key(key).payload(&buf);
+        let (key, buf) = Self::account_update_key_and_data(ev, &self.cluster, self.wrap_messages);
+        let record = BaseRecord::<Vec<u8>, _>::to(topic)
+            .key(&key)
+            .headers(Self::headers(&self.cluster))
+            .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
         UPLOAD_ACCOUNTS_TOTAL
             .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
@@ -87,7 +89,7 @@ impl KafkaPublisher {
     pub fn update_slot_status(&self, ev: SlotStatusEvent) -> Result<(), KafkaError> {
         let temp_key;
         let (key, buf) = if self.wrap_messages {
-            temp_key = self.copy_and_prepend(&ev.slot.to_le_bytes(), 83u8);
+            temp_key = Self::copy_and_prepend(&ev.slot.to_le_bytes(), 83u8);
             (&temp_key, Self::encode_with_wrapper(Slot(Box::new(ev))))
         } else {
             temp_key = ev.slot.to_le_bytes().to_vec();
@@ -106,7 +108,7 @@ impl KafkaPublisher {
     pub fn update_transaction(&self, ev: TransactionEvent) -> Result<(), KafkaError> {
         let temp_key;
         let (key, buf) = if self.wrap_messages {
-            temp_key = self.copy_and_prepend(ev.signature.as_slice(), 84u8);
+            temp_key = Self::copy_and_prepend(ev.signature.as_slice(), 84u8);
             (
                 &temp_key,
                 Self::encode_with_wrapper(Transaction(Box::new(ev))),
@@ -143,11 +145,50 @@ impl KafkaPublisher {
         .encode_to_vec()
     }
 
-    fn copy_and_prepend(&self, data: &[u8], prefix: u8) -> Vec<u8> {
+    // -----------------
+    // Account Update
+    // -----------------
+    fn account_update_key_and_data(
+        ev: UpdateAccountEvent,
+        cluster: &Cluster,
+        wrap_messages: bool,
+    ) -> (Vec<u8>, Vec<u8>) {
+        if wrap_messages {
+            let key = Self::account_update_key(cluster, &ev.owner);
+            let key = Self::copy_and_prepend(key.as_bytes(), 65u8);
+            let data = Self::encode_with_wrapper(Account(Box::new(ev)));
+            (key, data)
+        } else {
+            let key = Self::account_update_key(cluster, &ev.owner);
+            let key = key.as_bytes().to_vec();
+            let data = ev.encode_to_vec();
+            (key, data)
+        }
+    }
+
+    fn copy_and_prepend(data: &[u8], prefix: u8) -> Vec<u8> {
         let mut temp_key = Vec::with_capacity(data.len() + 1);
         temp_key.push(prefix);
         temp_key.extend_from_slice(data);
         temp_key
+    }
+
+    fn account_update_key(cluster: &Cluster, owner: &[u8]) -> String {
+        // SAFETY: we don't expect the RPC to provide us invalid pubkeys ever
+        cluster.key(&Pubkey::try_from(owner).unwrap().to_string())
+    }
+
+    // -----------------
+    // Headers
+    // -----------------
+    fn headers(cluster: &Cluster) -> OwnedHeaders {
+        let headers = OwnedHeaders::new();
+        let cluster = cluster.to_string();
+        let cluster_header = Header {
+            key: "cluster",
+            value: Some(cluster.as_bytes()),
+        };
+        headers.insert(cluster_header)
     }
 }
 
@@ -156,5 +197,113 @@ impl Drop for KafkaPublisher {
         if let Err(e) = self.producer.flush(self.shutdown_timeout) {
             error!("Failed to flush producer: {}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use rdkafka::message::Headers;
+
+    use super::*;
+
+    const PK: &str = "A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz";
+    fn event_with_owner(owner: &Pubkey) -> UpdateAccountEvent {
+        UpdateAccountEvent {
+            slot: 9,
+            pubkey: Pubkey::new_unique().to_bytes().to_vec(),
+            lamports: 100,
+            owner: owner.to_bytes().to_vec(),
+            executable: false,
+            rent_epoch: 0,
+            data: "account data".as_bytes().to_vec(),
+            write_version: 1,
+            txn_signature: None,
+        }
+    }
+
+    #[test]
+    fn account_update_key_and_data_no_wrap() {
+        fn check(cluster: Cluster, expected_key: &str) {
+            let owner = Pubkey::from_str(PK).unwrap();
+            let ev = event_with_owner(&owner);
+            let (key, data) =
+                KafkaPublisher::account_update_key_and_data(ev.clone(), &cluster, false);
+            let key = String::from_utf8_lossy(key.as_slice());
+
+            let mut bytes = data.as_slice();
+            let decoded = UpdateAccountEvent::decode(&mut bytes).unwrap();
+
+            assert_eq!(key, expected_key);
+            assert_eq!(decoded, ev);
+        }
+
+        check(
+            Cluster::Mainnet,
+            "mainnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
+        );
+        check(
+            Cluster::Devnet,
+            "devnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
+        );
+        check(
+            Cluster::Testnet,
+            "testnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
+        );
+    }
+
+    #[test]
+    fn account_update_key_and_data_wrap() {
+        fn check(cluster: Cluster, expected_key: &str) {
+            let owner = Pubkey::from_str(PK).unwrap();
+            let ev = event_with_owner(&owner);
+            let wrapped = MessageWrapper {
+                event_message: Some(EventMessage::Account(Box::new(ev.clone()))),
+            };
+
+            let (key, data) = KafkaPublisher::account_update_key_and_data(ev, &cluster, true);
+
+            assert_eq!(key[0], 65u8);
+            let key = key.into_iter().skip(1).collect::<Vec<_>>();
+            let key = String::from_utf8_lossy(key.as_slice());
+
+            let mut bytes = data.as_slice();
+            let decoded = MessageWrapper::decode(&mut bytes).unwrap();
+
+            assert_eq!(key, expected_key);
+            assert_eq!(decoded, wrapped);
+        }
+
+        check(
+            Cluster::Mainnet,
+            "mainnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
+        );
+        check(
+            Cluster::Devnet,
+            "devnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
+        );
+        check(
+            Cluster::Testnet,
+            "testnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
+        );
+    }
+
+    #[test]
+    fn headers_devnet() {
+        let headers = KafkaPublisher::headers(&Cluster::Devnet);
+        assert_eq!(headers.count(), 1);
+        let cluster_header = headers.get(0);
+        assert_eq!(cluster_header.key, "cluster");
+        assert_eq!(cluster_header.value.unwrap(), b"devnet");
+    }
+
+    #[test]
+    fn headers_mainnet() {
+        let headers = KafkaPublisher::headers(&Cluster::Mainnet);
+        assert_eq!(headers.count(), 1);
+        let cluster_header = headers.get(0);
+        assert_eq!(cluster_header.key, "cluster");
+        assert_eq!(cluster_header.value.unwrap(), b"mainnet");
     }
 }
