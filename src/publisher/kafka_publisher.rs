@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 
+use rdkafka::message::{Header, OwnedHeaders};
 use solana_program::pubkey::Pubkey;
 
 use {
@@ -74,7 +75,10 @@ impl KafkaPublisher {
             .unwrap_or(&self.update_account_topic);
 
         let (key, buf) = Self::account_update_key_and_data(ev, &self.cluster, self.wrap_messages);
-        let record = BaseRecord::<Vec<u8>, _>::to(topic).key(&key).payload(&buf);
+        let record = BaseRecord::<Vec<u8>, _>::to(topic)
+            .key(&key)
+            .headers(Self::headers(&self.cluster))
+            .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
         UPLOAD_ACCOUNTS_TOTAL
             .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
@@ -141,6 +145,9 @@ impl KafkaPublisher {
         .encode_to_vec()
     }
 
+    // -----------------
+    // Account Update
+    // -----------------
     fn account_update_key_and_data(
         ev: UpdateAccountEvent,
         cluster: &Cluster,
@@ -170,6 +177,19 @@ impl KafkaPublisher {
         // SAFETY: we don't expect the RPC to provide us invalid pubkeys ever
         format!("{}:{}", cluster, Pubkey::try_from(owner).unwrap())
     }
+
+    // -----------------
+    // Headers
+    // -----------------
+    fn headers(cluster: &Cluster) -> OwnedHeaders {
+        let headers = OwnedHeaders::new();
+        let cluster = cluster.to_string();
+        let cluster_header = Header {
+            key: "cluster",
+            value: Some(cluster.as_bytes()),
+        };
+        headers.insert(cluster_header)
+    }
 }
 
 impl Drop for KafkaPublisher {
@@ -183,6 +203,8 @@ impl Drop for KafkaPublisher {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
+    use rdkafka::message::Headers;
 
     use super::*;
 
@@ -265,5 +287,23 @@ mod tests {
             Cluster::Testnet,
             "testnet:A15Y2eoMNGeX4516TYTaaMErwabCrf9AB9mrzFohdQJz",
         );
+    }
+
+    #[test]
+    fn headers_devnet() {
+        let headers = KafkaPublisher::headers(&Cluster::Devnet);
+        assert_eq!(headers.count(), 1);
+        let cluster_header = headers.get(0);
+        assert_eq!(cluster_header.key, "cluster");
+        assert_eq!(cluster_header.value.unwrap(), b"devnet");
+    }
+
+    #[test]
+    fn headers_mainnet() {
+        let headers = KafkaPublisher::headers(&Cluster::Mainnet);
+        assert_eq!(headers.count(), 1);
+        let cluster_header = headers.get(0);
+        assert_eq!(cluster_header.key, "cluster");
+        assert_eq!(cluster_header.value.unwrap(), b"mainnet");
     }
 }
