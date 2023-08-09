@@ -175,7 +175,7 @@ impl KafkaPublisher {
 
     fn account_update_key(cluster: &Cluster, owner: &[u8]) -> String {
         // SAFETY: we don't expect the RPC to provide us invalid pubkeys ever
-        format!("{}:{}", cluster, Pubkey::try_from(owner).unwrap())
+        cluster.key(&Pubkey::try_from(owner).unwrap().to_string())
     }
 
     // -----------------
