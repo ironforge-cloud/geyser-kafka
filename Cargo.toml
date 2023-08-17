@@ -27,7 +27,7 @@ serde_json = { version = "~1" }
 tokio = { version = "1.14", features = ["rt-multi-thread", "time", "macros", "sync"] }
 simple-error = "*"
 ureq = "2.5.0"
-thiserror = "1.0.44"
+thiserror = "1.0.47"
 
 [dev-dependencies]
 mockito = "0.31.1"
