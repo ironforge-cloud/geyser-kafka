@@ -132,6 +132,11 @@ impl GeyserPlugin for KafkaPlugin {
         if !self.publish_accounts_without_signature && info.txn.is_none() {
             return Ok(());
         }
+        info!(
+            "Sending account '{}' with sig {:?}",
+            Pubkey::try_from(info.pubkey).unwrap(),
+            info.txn
+        );
 
         // Trigger an update of the remote allowlist for each filter
         // but don't wait for it to complete.
