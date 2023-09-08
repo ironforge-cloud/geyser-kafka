@@ -152,9 +152,12 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         info!(
-            "Sending account '{}' with sig {:?}",
+            "Sending '{}' of program '{}' with sig '{}'",
             Pubkey::try_from(info.pubkey).unwrap(),
+            Pubkey::try_from(info.owner).unwrap(),
             info.txn
+                .map(|x| x.signature().to_string())
+                .unwrap_or_default()
         );
 
         let event = UpdateAccountEvent {
