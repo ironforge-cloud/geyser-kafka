@@ -40,7 +40,7 @@ pub use {
     filter::Filter,
     plugin::KafkaPlugin,
     prom::PrometheusService,
-    publisher::FilteringPublisher,
+    publisher::{FilteringPublisher, serializable_events},
     system_programs::*,
 };
 
