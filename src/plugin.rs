@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::is_system_program;
+
 use {
     crate::{
         publisher::{kafka_publisher::KafkaPublisher, LocalPublisher, Publisher},
@@ -21,7 +23,7 @@ use {
         SanitizedTransaction, SlotStatus, SlotStatusEvent, TransactionEvent, TransactionStatusMeta,
         TransactionTokenBalance, UiTokenAmount, UpdateAccountEvent, V0LoadedMessage, V0Message,
     },
-    log::{debug, info, log_enabled},
+    log::{debug, info, log_enabled, trace},
     rdkafka::util::get_rdkafka_version,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV3,
@@ -130,6 +132,7 @@ impl GeyserPlugin for KafkaPlugin {
 
         let info = Self::unwrap_update_account(account);
         if !self.publish_accounts_without_signature && info.txn.is_none() {
+            Self::log_ignore_account_update(info, "No Transaction Signature");
             return Ok(());
         }
 
@@ -147,7 +150,7 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         if !publishers.iter().any(|p| p.wants_account_key(info.owner)) {
-            Self::log_ignore_account_update(info);
+            Self::log_ignore_account_update(info, "No publisher wants this account");
             return Ok(());
         }
 
@@ -538,15 +541,22 @@ impl KafkaPlugin {
         }
     }
 
-    fn log_ignore_account_update(info: &ReplicaAccountInfoV3) {
-        if log_enabled!(::log::Level::Debug) {
+    fn log_ignore_account_update(info: &ReplicaAccountInfoV3, reason: &str) {
+        if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
             match <&[u8; 32]>::try_from(info.owner) {
-                Ok(key) => debug!(
-                    "Ignoring update for account key: {:?}",
-                    Pubkey::new_from_array(*key)
-                ),
+                Ok(key) => {
+                    let owner = Pubkey::new_from_array(*key);
+                    if is_system_program(&owner) {
+                        trace!("Ignoring update for account key: {:?}. {}", owner, reason)
+                    } else {
+                        debug!("Ignoring update for account key: {:?}. {}", owner, reason)
+                    }
+                }
                 // Err should never happen because wants_account_key only returns false if the input is &[u8; 32]
-                Err(_err) => debug!("Ignoring update for account key: {:?}", info.owner),
+                Err(_err) => debug!(
+                    "Ignoring update for account key: {:?}. {}",
+                    info.owner, reason
+                ),
             };
         }
     }

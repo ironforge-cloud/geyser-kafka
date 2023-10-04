@@ -28,6 +28,7 @@ mod filter;
 mod plugin;
 mod prom;
 mod publisher;
+mod system_programs;
 mod version;
 
 pub use {
@@ -40,6 +41,7 @@ pub use {
     plugin::KafkaPlugin,
     prom::PrometheusService,
     publisher::FilteringPublisher,
+    system_programs::*,
 };
 
 #[no_mangle]
