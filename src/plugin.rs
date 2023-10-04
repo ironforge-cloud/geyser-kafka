@@ -245,10 +245,10 @@ impl GeyserPlugin for KafkaPlugin {
                         .any(|p| p.wants_account_key(&key.to_bytes()))
                 });
             if maybe_ignored.is_some() {
-                debug!(
-                    "Ignoring transaction {:?} due to account key: {:?}",
-                    info.signature,
-                    &maybe_ignored.unwrap()
+                Self::log_ignore_transaction_update(
+                    info,
+                    maybe_ignored.unwrap(),
+                    "Account not wanted",
                 );
                 return Ok(());
             }
@@ -557,6 +557,35 @@ impl KafkaPlugin {
                     "Ignoring update for account key: {:?}. {}",
                     info.owner, reason
                 ),
+            };
+        }
+    }
+
+    fn log_ignore_transaction_update(
+        info: &ReplicaTransactionInfoV2,
+        owner: &Pubkey,
+        reason: &str,
+    ) {
+        if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
+            match <&[u8; 32]>::try_from(&owner.to_bytes()) {
+                Ok(key) => {
+                    let owner = Pubkey::new_from_array(*key);
+                    if is_system_program(&owner) {
+                        trace!(
+                            "Ignoring transaction {:?} due to account key: {:?}. {}",
+                            info.signature,
+                            owner,
+                            reason
+                        )
+                    } else {
+                        debug!(
+                            "Ignoring transaction {:?} due to account key: {:?}. {}",
+                            info.signature, owner, reason
+                        )
+                    }
+                }
+                // Err should never happen because wants_account_key only returns false if the input is &[u8; 32]
+                Err(_err) => debug!("Ignoring update for account key: {:?}. {}", owner, reason),
             };
         }
     }
