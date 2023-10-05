@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::is_system_program;
-
 use {
     crate::{
+        is_system_program,
         publisher::{kafka_publisher::KafkaPublisher, LocalPublisher, Publisher},
         sanitized_message, CompiledInstruction, Config, EnvConfig, Filter, FilteringPublisher,
         InnerInstruction, InnerInstructions, LegacyLoadedMessage, LegacyMessage, LoadedAddresses,
@@ -30,6 +29,7 @@ use {
         ReplicaAccountInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions,
         Result as PluginResult, SlotStatus as PluginSlotStatus,
     },
+    solana_program::message::AccountKeys,
     solana_program::pubkey::Pubkey,
     std::fmt::{Debug, Formatter},
 };
@@ -233,22 +233,17 @@ impl GeyserPlugin for KafkaPlugin {
                 continue;
             }
 
-            let maybe_ignored = info
-                .transaction
-                .message()
-                .account_keys()
-                .iter()
-                .find(|key| {
-                    !self
-                        .unwrap_publishers()
-                        .iter()
-                        .any(|p| p.wants_account_key(&key.to_bytes()))
-                });
-            if maybe_ignored.is_some() {
+            let account_keys = info.transaction.message().account_keys();
+            let wanted = account_keys.iter().any(|key| {
+                self.unwrap_publishers()
+                    .iter()
+                    .any(|p| p.wants_account_key(&key.to_bytes()))
+            });
+            if !wanted {
                 Self::log_ignore_transaction_update(
                     info,
-                    maybe_ignored.unwrap(),
-                    "Account not wanted",
+                    &account_keys,
+                    "None of the accounts are wanted",
                 );
                 return Ok(());
             }
@@ -563,30 +558,32 @@ impl KafkaPlugin {
 
     fn log_ignore_transaction_update(
         info: &ReplicaTransactionInfoV2,
-        owner: &Pubkey,
+        account_keys: &AccountKeys,
         reason: &str,
     ) {
         if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
-            match <&[u8; 32]>::try_from(&owner.to_bytes()) {
-                Ok(key) => {
-                    let owner = Pubkey::new_from_array(*key);
-                    if is_system_program(&owner) {
-                        trace!(
-                            "Ignoring transaction {:?} due to account key: {:?}. {}",
-                            info.signature,
-                            owner,
-                            reason
-                        )
-                    } else {
-                        debug!(
-                            "Ignoring transaction {:?} due to account key: {:?}. {}",
-                            info.signature, owner, reason
-                        )
-                    }
-                }
-                // Err should never happen because wants_account_key only returns false if the input is &[u8; 32]
-                Err(_err) => debug!("Ignoring update for account key: {:?}. {}", owner, reason),
-            };
+            // The account keys don't only include programs, so it is impossible to tell
+            // if a transaction is affecting system programs only.
+            // We err on _tracing_ to avoid spamming the logs.
+            let trace = account_keys.iter().any(is_system_program);
+            let keys_str = account_keys
+                .iter()
+                .map(|k| format!("{}", k))
+                .collect::<Vec<_>>()
+                .join(", ");
+            if trace {
+                trace!(
+                    "Ignoring transaction {:?} with account keys: {}. {}",
+                    info.signature,
+                    keys_str,
+                    reason
+                )
+            } else {
+                debug!(
+                    "Ignoring transaction {:?} with account keys: {}. {}",
+                    info.signature, keys_str, reason
+                )
+            }
         }
     }
 }
