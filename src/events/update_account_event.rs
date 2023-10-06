@@ -24,7 +24,7 @@ impl UpdateAccountEvent {
             rent_epoch: 0,
             data: vec![],
             // We do not know the actual write_version, so we use the last write_version for which
-            //  we published an account_update incremented by 1
+            // we published an account_update incremented by 1
             write_version,
             txn_signature: Some(signature),
         }
