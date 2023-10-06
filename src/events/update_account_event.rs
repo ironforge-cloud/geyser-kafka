@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaTransactionInfoV2;
 use solana_program::{pubkey::Pubkey, slot_history::Slot};
 
@@ -10,6 +12,7 @@ impl UpdateAccountEvent {
         account: Pubkey,
         owner: Vec<u8>,
         tx: &ReplicaTransactionInfo,
+        write_version: u64,
     ) -> Self {
         let signature: Vec<u8> = tx.signature().as_ref().to_vec();
         Self {
@@ -20,11 +23,9 @@ impl UpdateAccountEvent {
             executable: false,
             rent_epoch: 0,
             data: vec![],
-            // TODO(thlorenz): We do not know the actual write_version
-            // This could lead to issues when an account is _deleted_ by draining its lamports
-            // and then recreated, i.e. by airdropping money and reassigned to the previous owner
-            // A way around this would be to track the current write_version for each slot
-            write_version: 0,
+            // We do not know the actual write_version, so we use the last write_version for which
+            //  we published an account_update incremented by 1
+            write_version,
             txn_signature: Some(signature),
         }
     }
@@ -34,16 +35,17 @@ pub fn publish_deleted_account_events(
     publishers: &[&Publisher],
     transaction: &ReplicaTransactionInfoV2,
     slot: Slot,
+    last_published_write_version: &Arc<Mutex<u64>>,
 ) -> Vec<PluginError> {
-    let events = create_deleted_account_events(publishers, transaction, slot);
+    let events =
+        create_deleted_account_events(publishers, transaction, slot, last_published_write_version);
     let mut errors = vec![];
     for event in events.into_iter() {
         let owner = &event.owner;
         for publisher in publishers {
             if publisher.wants_account_key(owner) {
-                match publisher.update_account(event.clone()) {
-                    Ok(_) => {}
-                    Err(err) => errors.push(err),
+                if let Err(err) = publisher.update_account(event.clone()) {
+                    errors.push(err)
                 }
             }
         }
@@ -55,6 +57,7 @@ fn create_deleted_account_events(
     publishers: &[&Publisher],
     transaction: &ReplicaTransactionInfoV2,
     slot: Slot,
+    last_published_write_version: &Arc<Mutex<u64>>,
 ) -> Vec<UpdateAccountEvent> {
     let tx = ReplicaTransactionInfo::new(transaction, slot);
     let deleted_accounts = tx.account_addresses_with_zero_post_balance();
@@ -77,6 +80,14 @@ fn create_deleted_account_events(
         })
         .collect::<Vec<_>>();
 
+    if programs_we_want.is_empty() {
+        return vec![];
+    };
+
+    let write_version = *last_published_write_version
+        .lock()
+        .expect("write_version Mutex poisend")
+        + 1;
     deleted_accounts
         .into_iter()
         .flat_map(|deleted_account| {
@@ -87,6 +98,7 @@ fn create_deleted_account_events(
                         deleted_account,
                         owner.to_bytes().to_vec(),
                         &tx,
+                        write_version,
                     )
                 })
                 .collect::<Vec<_>>()

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::{Arc, Mutex};
+
 use crate::events::update_account_event::publish_deleted_account_events;
 
 use {
@@ -42,6 +44,13 @@ pub struct KafkaPlugin {
     publish_all_accounts: bool,
     publish_accounts_without_signature: bool,
     prometheus: Option<PrometheusService>,
+
+    /// A global monotonically increasing atomic number, which can be used
+    /// to tell the order of the account update. For example, when an
+    /// account is updated in the same slot multiple times, the update
+    /// with higher write_version should supersede the one with lower
+    /// write_version.
+    last_published_write_version: Arc<Mutex<u64>>,
 }
 
 impl Debug for KafkaPlugin {
@@ -167,6 +176,10 @@ impl GeyserPlugin for KafkaPlugin {
             write_version: info.write_version,
             txn_signature: info.txn.map(|v| v.signature().as_ref().to_owned()),
         };
+        *self
+            .last_published_write_version
+            .lock()
+            .expect("write_version mutex poisoned") = event.write_version;
 
         let mut errors = Vec::new();
         for publisher in publishers {
@@ -233,7 +246,12 @@ impl GeyserPlugin for KafkaPlugin {
 
         // We do not get account updates when an account is deleted, therefore we extract
         // those events from the transactions instead.
-        let account_errors = publish_deleted_account_events(&publishers, &info, slot);
+        let account_errors = publish_deleted_account_events(
+            &publishers,
+            &info,
+            slot,
+            &self.last_published_write_version,
+        );
         for account_error in account_errors {
             errors.push(account_error.to_string());
         }
