@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::events::update_account_event::publish_deleted_account_events;
+
 use {
     crate::{
         is_system_program,
@@ -228,6 +230,14 @@ impl GeyserPlugin for KafkaPlugin {
         let info = Self::unwrap_transaction(transaction);
 
         let mut errors = Vec::new();
+
+        // We do not get account updates when an account is deleted, therefore we extract
+        // those events from the transactions instead.
+        let account_errors = publish_deleted_account_events(&publishers, &info, slot);
+        for account_error in account_errors {
+            errors.push(account_error.to_string());
+        }
+
         for publisher in publishers {
             if !publisher.wants_transaction() {
                 continue;

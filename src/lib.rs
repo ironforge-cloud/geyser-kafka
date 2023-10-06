@@ -30,6 +30,7 @@ mod prom;
 mod publisher;
 mod system_programs;
 mod version;
+pub mod events;
 
 pub use {
     cluster::Cluster,

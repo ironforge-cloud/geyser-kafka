@@ -2768,6 +2768,7 @@ dependencies = [
  "solana-geyser-plugin-interface",
  "solana-logger",
  "solana-program",
+ "solana-sdk",
  "solana-transaction-status",
  "thiserror",
  "tokio",
