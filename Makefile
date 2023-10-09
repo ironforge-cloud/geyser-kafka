@@ -11,13 +11,17 @@ SOLANAX=$(DIR)/../solanax
 LOG_LEVEL=INFO
 RUST_LOG=solana_accountsdb_plugin_kafka=DEBUG,solana_geyser_plugin_manager=INFO
 
-# TODO: publish amman version that supports geyser
+# TODO: publish amman version (https://github.com/soldev-foundation/amman)
+# that supports geyser under soldev
 # AMMAN=./node_modules/.bin/amman
 AMMAN=amman_
 
 amman:
 	RUST_LOG=$(RUST_LOG) \
     $(AMMAN) start
+
+amman-stop:
+	$(AMMAN) stop
 
 geyser-store:
 	cd $(GEYSER_STORE) && \

@@ -1,4 +1,6 @@
 /target
 .idea/
 *.json
+!tsconfig.json
+!package.json
 !example-config.json
