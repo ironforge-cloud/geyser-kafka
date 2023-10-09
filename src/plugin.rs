@@ -42,6 +42,7 @@ use {
 pub struct KafkaPlugin {
     publishers: Option<Vec<Publisher>>,
     publish_all_accounts: bool,
+    publish_account_deletions: bool,
     publish_accounts_without_signature: bool,
     prometheus: Option<PrometheusService>,
 
@@ -77,6 +78,7 @@ impl GeyserPlugin for KafkaPlugin {
         );
         let config = Config::read_from(config_file)?;
         self.publish_all_accounts = config.publish_all_accounts;
+        self.publish_account_deletions = config.publish_account_deletions;
         self.publish_accounts_without_signature = config.publish_accounts_without_signature;
 
         let (version_n, version_s) = get_rdkafka_version();
@@ -248,7 +250,7 @@ impl GeyserPlugin for KafkaPlugin {
         // those events from the transactions instead.
         let account_errors = publish_deleted_account_events(
             &publishers,
-            &info,
+            info,
             slot,
             &self.last_published_write_version,
         );
@@ -301,6 +303,7 @@ impl GeyserPlugin for KafkaPlugin {
         self.unwrap_publishers()
             .iter()
             .any(|p| p.wants_transaction())
+            || (self.publish_account_deletions && self.account_data_notifications_enabled())
     }
 }
 
