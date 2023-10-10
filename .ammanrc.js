@@ -5,7 +5,7 @@ const ledgerDir = path.join(__dirname, 'ledger')
 const NO_GEYSER = process.env.NO_GEYSER != null
 const geyserPluginConfig = NO_GEYSER
   ? undefined
-  : path.join(__dirname, 'config-dev.json')
+  : path.join(__dirname, 'config-local.json')
 
 const DEVNET = process.env.IF_HELIUS_DEV ?? 'https://api.devnet.solana.com'
 const SOLANAX_PROGRAM = 'SoLXmnP9JvL6vJ7TN1VqtTxqsc2izmPfF9CsMDEuRzJ'
