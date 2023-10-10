@@ -13,7 +13,7 @@ impl<'a> Deref for ReplicaTransactionInfo<'a> {
     type Target = ReplicaTransactionInfoV2<'a>;
 
     fn deref(&self) -> &Self::Target {
-        &self.info
+        self.info
     }
 }
 
@@ -44,7 +44,7 @@ impl<'a> ReplicaTransactionInfo<'a> {
         let account_keys = self.account_keys();
         zero_balance_indexes
             .iter()
-            .map(|&idx| account_keys[idx].clone())
+            .map(|&idx| account_keys[idx])
             .collect::<Vec<_>>()
     }
 
