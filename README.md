@@ -106,6 +106,12 @@ are added to the `environments` array.
         * This will include account updates that occur without a corresponding
             * transaction, i.e. caused by validator book-keeping.
         * Omit to disable.
+* **publish_account_deletions** (bool)
+   * Detects account deletions from transactions where lamports went to `0` for an account
+     and publishes them for each other account, that is part
+     of that transaction (assuming it could be the owner of the deleted account).
+   *  **NOTE** that this will enable transaction notifications. 
+   * Omit to disable. **Default:** `false`
 * **wrap_messages** (`bool`)
     * Wrap all messages in a unified wrapper object.
         * Omit to disable.
@@ -134,6 +140,7 @@ are added to the `environments` array.
   },
   "publish_all_accounts": false,
   "publish_accounts_without_signature": false,
+  "publish_account_deletions": true,
   "wrap_messages": false,
   "environments": [
     {
