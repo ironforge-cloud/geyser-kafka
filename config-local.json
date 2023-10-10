@@ -1,0 +1,18 @@
+{
+  "libpath": "./target/debug/libsolana_accountsdb_plugin_kafka.dylib",
+  "shutdown_timeout_ms": 30000,
+  "update_account_topic": "update-account",
+  "transaction_topic": "update-transaction",
+  "publish_account_deletions": true,
+  "publish_all_accounts": false,
+  "publish_accounts_without_signature": false,
+  "wrap_messages": false,
+  "environments": [
+    {
+      "name": "local",
+      "url": "http://localhost:9999",
+      "include_system_accounts": false,
+      "program_allowlist": ["SoLXmnP9JvL6vJ7TN1VqtTxqsc2izmPfF9CsMDEuRzJ"]
+    }
+  ]
+}

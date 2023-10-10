@@ -24,10 +24,12 @@ mod config;
 mod env_config;
 mod errors;
 mod event;
+pub mod events;
 mod filter;
 mod plugin;
 mod prom;
 mod publisher;
+mod system_programs;
 mod version;
 
 pub use {
@@ -39,7 +41,8 @@ pub use {
     filter::Filter,
     plugin::KafkaPlugin,
     prom::PrometheusService,
-    publisher::FilteringPublisher,
+    publisher::{serializable_events, FilteringPublisher},
+    system_programs::*,
 };
 
 #[no_mangle]

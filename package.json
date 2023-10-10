@@ -1,0 +1,22 @@
+{
+  "name": "geyser-kafka-tools",
+  "version": "0.0.0",
+  "description": "Tools we use to test our Kafka plugin.",
+  "main": "index.js",
+  "repository": "git@github.com:ironforge-cloud/geyser-kafka.git",
+  "author": "Thorsten Lorenz <thlorenz@gmx.de>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "yarn test:ix",
+    "test:ix": "yarn test:ix:send-delete-post",
+    "test:ix:send-delete-post": "DEBUG=geyser:* esr test/ix/send-delete-post.ts"
+  },
+  "devDependencies": {
+    "@metaplex-foundation/amman": "^0.12.1",
+    "@types/debug": "^4.1.9",
+    "debug": "^4.3.4",
+    "execa": "^5.1.1",
+    "spok": "^1.5.5"
+  }
+}

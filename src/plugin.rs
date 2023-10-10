@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::{Arc, Mutex};
+
+use crate::events::update_account_event::publish_deleted_account_events;
+
 use {
     crate::{
+        is_system_program,
         publisher::{kafka_publisher::KafkaPublisher, LocalPublisher, Publisher},
         sanitized_message, CompiledInstruction, Config, EnvConfig, Filter, FilteringPublisher,
         InnerInstruction, InnerInstructions, LegacyLoadedMessage, LegacyMessage, LoadedAddresses,
@@ -21,13 +26,14 @@ use {
         SanitizedTransaction, SlotStatus, SlotStatusEvent, TransactionEvent, TransactionStatusMeta,
         TransactionTokenBalance, UiTokenAmount, UpdateAccountEvent, V0LoadedMessage, V0Message,
     },
-    log::{debug, info, log_enabled},
+    log::{debug, info, log_enabled, trace},
     rdkafka::util::get_rdkafka_version,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError as PluginError, ReplicaAccountInfoV3,
         ReplicaAccountInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions,
         Result as PluginResult, SlotStatus as PluginSlotStatus,
     },
+    solana_program::message::AccountKeys,
     solana_program::pubkey::Pubkey,
     std::fmt::{Debug, Formatter},
 };
@@ -36,8 +42,16 @@ use {
 pub struct KafkaPlugin {
     publishers: Option<Vec<Publisher>>,
     publish_all_accounts: bool,
+    publish_account_deletions: bool,
     publish_accounts_without_signature: bool,
     prometheus: Option<PrometheusService>,
+
+    /// A global monotonically increasing atomic number, which can be used
+    /// to tell the order of the account update. For example, when an
+    /// account is updated in the same slot multiple times, the update
+    /// with higher write_version should supersede the one with lower
+    /// write_version.
+    last_published_write_version: Arc<Mutex<u64>>,
 }
 
 impl Debug for KafkaPlugin {
@@ -64,6 +78,7 @@ impl GeyserPlugin for KafkaPlugin {
         );
         let config = Config::read_from(config_file)?;
         self.publish_all_accounts = config.publish_all_accounts;
+        self.publish_account_deletions = config.publish_account_deletions;
         self.publish_accounts_without_signature = config.publish_accounts_without_signature;
 
         let (version_n, version_s) = get_rdkafka_version();
@@ -130,6 +145,7 @@ impl GeyserPlugin for KafkaPlugin {
 
         let info = Self::unwrap_update_account(account);
         if !self.publish_accounts_without_signature && info.txn.is_none() {
+            Self::log_ignore_account_update(info, "No Transaction Signature");
             return Ok(());
         }
 
@@ -147,7 +163,7 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         if !publishers.iter().any(|p| p.wants_account_key(info.owner)) {
-            Self::log_ignore_account_update(info);
+            Self::log_ignore_account_update(info, "No publisher wants this account");
             return Ok(());
         }
 
@@ -162,6 +178,10 @@ impl GeyserPlugin for KafkaPlugin {
             write_version: info.write_version,
             txn_signature: info.txn.map(|v| v.signature().as_ref().to_owned()),
         };
+        *self
+            .last_published_write_version
+            .lock()
+            .expect("write_version mutex poisoned") = event.write_version;
 
         let mut errors = Vec::new();
         for publisher in publishers {
@@ -225,27 +245,35 @@ impl GeyserPlugin for KafkaPlugin {
         let info = Self::unwrap_transaction(transaction);
 
         let mut errors = Vec::new();
+
+        // We do not get account updates when an account is deleted, therefore we extract
+        // those events from the transactions instead.
+        let account_errors = publish_deleted_account_events(
+            &publishers,
+            info,
+            slot,
+            &self.last_published_write_version,
+        );
+        for account_error in account_errors {
+            errors.push(account_error.to_string());
+        }
+
         for publisher in publishers {
             if !publisher.wants_transaction() {
                 continue;
             }
 
-            let maybe_ignored = info
-                .transaction
-                .message()
-                .account_keys()
-                .iter()
-                .find(|key| {
-                    !self
-                        .unwrap_publishers()
-                        .iter()
-                        .any(|p| p.wants_account_key(&key.to_bytes()))
-                });
-            if maybe_ignored.is_some() {
-                debug!(
-                    "Ignoring transaction {:?} due to account key: {:?}",
-                    info.signature,
-                    &maybe_ignored.unwrap()
+            let account_keys = info.transaction.message().account_keys();
+            let wanted = account_keys.iter().any(|key| {
+                self.unwrap_publishers()
+                    .iter()
+                    .any(|p| p.wants_account_key(&key.to_bytes()))
+            });
+            if !wanted {
+                Self::log_ignore_transaction_update(
+                    info,
+                    &account_keys,
+                    "None of the accounts are wanted",
                 );
                 return Ok(());
             }
@@ -275,6 +303,7 @@ impl GeyserPlugin for KafkaPlugin {
         self.unwrap_publishers()
             .iter()
             .any(|p| p.wants_transaction())
+            || (self.publish_account_deletions && self.account_data_notifications_enabled())
     }
 }
 
@@ -538,16 +567,54 @@ impl KafkaPlugin {
         }
     }
 
-    fn log_ignore_account_update(info: &ReplicaAccountInfoV3) {
-        if log_enabled!(::log::Level::Debug) {
+    fn log_ignore_account_update(info: &ReplicaAccountInfoV3, reason: &str) {
+        if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
             match <&[u8; 32]>::try_from(info.owner) {
-                Ok(key) => debug!(
-                    "Ignoring update for account key: {:?}",
-                    Pubkey::new_from_array(*key)
-                ),
+                Ok(key) => {
+                    let owner = Pubkey::new_from_array(*key);
+                    if is_system_program(&owner) {
+                        trace!("Ignoring update for account key: {:?}. {}", owner, reason)
+                    } else {
+                        debug!("Ignoring update for account key: {:?}. {}", owner, reason)
+                    }
+                }
                 // Err should never happen because wants_account_key only returns false if the input is &[u8; 32]
-                Err(_err) => debug!("Ignoring update for account key: {:?}", info.owner),
+                Err(_err) => debug!(
+                    "Ignoring update for account key: {:?}. {}",
+                    info.owner, reason
+                ),
             };
+        }
+    }
+
+    fn log_ignore_transaction_update(
+        info: &ReplicaTransactionInfoV2,
+        account_keys: &AccountKeys,
+        reason: &str,
+    ) {
+        if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
+            // The account keys don't only include programs, so it is impossible to tell
+            // if a transaction is affecting system programs only.
+            // We err on _tracing_ to avoid spamming the logs.
+            let trace = account_keys.iter().any(is_system_program);
+            let keys_str = account_keys
+                .iter()
+                .map(|k| format!("{}", k))
+                .collect::<Vec<_>>()
+                .join(", ");
+            if trace {
+                trace!(
+                    "Ignoring transaction {:?} with account keys: {}. {}",
+                    info.signature,
+                    keys_str,
+                    reason
+                )
+            } else {
+                debug!(
+                    "Ignoring transaction {:?} with account keys: {}. {}",
+                    info.signature, keys_str, reason
+                )
+            }
         }
     }
 }

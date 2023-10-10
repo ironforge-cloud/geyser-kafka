@@ -1,6 +1,6 @@
 use crate::{
     allowlist::Allowlist, Config, Filter, PluginResult, SlotStatusEvent, TransactionEvent,
-    UpdateAccountEvent,
+    UpdateAccountEvent, SYSTEM_PROGRAMS,
 };
 use solana_program::pubkey::Pubkey;
 use std::{collections::HashSet, str::FromStr};
@@ -11,16 +11,6 @@ use serde::Serialize;
 use super::serializable_events::{
     SerializableSlotStatusEvent, SerializableTransactionEvent, SerializableUpdateAccountEvent,
 };
-
-// -----------------
-// System Program List
-// -----------------
-const SYSTEM_PROGRAMS: [&str; 4] = [
-    "11111111111111111111111111111111",
-    "BPFLoaderUpgradeab1e11111111111111111111111",
-    "Vote111111111111111111111111111111111111111",
-    "Config1111111111111111111111111111111111111",
-];
 
 // -----------------
 // LocalPublisher

@@ -1,7 +1,7 @@
 mod filtering_publisher;
 pub mod kafka_publisher;
 mod local_publisher;
-mod serializable_events;
+pub mod serializable_events;
 
 use crate::{
     allowlist::Allowlist, PluginResult, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,

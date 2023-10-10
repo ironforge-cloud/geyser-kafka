@@ -10,7 +10,7 @@ use serde::Serialize;
 // -----------------
 // UpdateAccountEvent
 // -----------------
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableUpdateAccountEvent {
     slot: u64,
     pubkey: Vec<u8>,
@@ -42,7 +42,7 @@ impl From<UpdateAccountEvent> for SerializableUpdateAccountEvent {
 // -----------------
 // SlotStatusEvent
 // -----------------
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub enum SerializableSlotStatus {
     Processed,
     Rooted,
@@ -60,7 +60,7 @@ impl From<i32> for SerializableSlotStatus {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableSlotStatusEvent {
     slot: u64,
     parent: u64,
@@ -80,7 +80,7 @@ impl From<SlotStatusEvent> for SerializableSlotStatusEvent {
 // -----------------
 // TransactionEvent
 // -----------------
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableMessageHeader {
     pub num_required_signatures: u32,
     pub num_readonly_signed_accounts: u32,
@@ -97,7 +97,7 @@ impl From<MessageHeader> for SerializableMessageHeader {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableCompiledInstruction {
     pub program_id_index: u32,
     pub accounts: Vec<u32>,
@@ -114,7 +114,7 @@ impl From<CompiledInstruction> for SerializableCompiledInstruction {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableLoadedAddresses {
     pub writable: Vec<Vec<u8>>,
     pub readonly: Vec<Vec<u8>>,
@@ -129,7 +129,7 @@ impl From<LoadedAddresses> for SerializableLoadedAddresses {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableMessageAddressTableLookup {
     pub account_key: Vec<u8>,
     pub writable_indexes: Vec<u32>,
@@ -146,7 +146,7 @@ impl From<MessageAddressTableLookup> for SerializableMessageAddressTableLookup {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableV0Message {
     pub header: Option<SerializableMessageHeader>,
     pub account_keys: Vec<Vec<u8>>,
@@ -175,7 +175,7 @@ impl From<V0Message> for SerializableV0Message {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableV0LoadedMessage {
     pub message: Option<SerializableV0Message>,
     pub loaded_adresses: Option<SerializableLoadedAddresses>,
@@ -192,7 +192,7 @@ impl From<V0LoadedMessage> for SerializableV0LoadedMessage {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableLegacyMessage {
     pub header: Option<SerializableMessageHeader>,
     pub account_keys: Vec<Vec<u8>>,
@@ -215,7 +215,7 @@ impl From<LegacyMessage> for SerializableLegacyMessage {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableLegacyLoadedMessage {
     pub message: Option<SerializableLegacyMessage>,
     pub is_writable_account_cache: Vec<bool>,
@@ -230,7 +230,7 @@ impl From<LegacyLoadedMessage> for SerializableLegacyLoadedMessage {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub enum SerializableMessagePayload {
     Legacy(SerializableLegacyLoadedMessage),
     V0(SerializableV0LoadedMessage),
@@ -245,7 +245,7 @@ impl From<MessagePayload> for SerializableMessagePayload {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableSanitizedMessage {
     pub message_payload: Option<SerializableMessagePayload>,
 }
@@ -258,7 +258,7 @@ impl From<SanitizedMessage> for SerializableSanitizedMessage {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableSanitizedTransaction {
     pub message: Option<SerializableSanitizedMessage>,
     pub message_hash: Vec<u8>,
@@ -277,7 +277,7 @@ impl From<SanitizedTransaction> for SerializableSanitizedTransaction {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableInnerInstruction {
     pub instruction: Option<SerializableCompiledInstruction>,
     pub stack_height: Option<u32>,
@@ -292,7 +292,7 @@ impl From<InnerInstruction> for SerializableInnerInstruction {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableInnerInstructions {
     pub index: u32,
     pub instructions: Vec<SerializableInnerInstruction>,
@@ -311,7 +311,7 @@ impl From<InnerInstructions> for SerializableInnerInstructions {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableUiTokenAmount {
     pub ui_amount: Option<f64>,
     pub decimals: u32,
@@ -330,7 +330,7 @@ impl From<UiTokenAmount> for SerializableUiTokenAmount {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableTransactionTokenBalance {
     pub account_index: u32,
     pub mint: String,
@@ -349,7 +349,7 @@ impl From<TransactionTokenBalance> for SerializableTransactionTokenBalance {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableReward {
     pub pubkey: String,
     pub lamports: i64,
@@ -370,7 +370,7 @@ impl From<Reward> for SerializableReward {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableTransactionStatusMeta {
     pub is_status_err: bool,
     pub error_info: String,
@@ -417,7 +417,7 @@ impl From<TransactionStatusMeta> for SerializableTransactionStatusMeta {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct SerializableTransactionEvent {
     pub signature: Vec<u8>,
     pub is_vote: bool,

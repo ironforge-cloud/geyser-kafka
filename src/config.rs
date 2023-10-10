@@ -75,6 +75,12 @@ pub struct Config {
     /// Publish all accounts on startup. Omit to disable.
     #[serde(default)]
     pub publish_all_accounts: bool,
+    /// Detects account deletions from transactions where lamports went to `0`
+    /// for an account and publishes them for each other account, that is part
+    /// of that transaction (assuming it could be the owner of the deleted account).
+    /// NOTE that this will enable transaction notifications. Omit to disable.
+    #[serde(default)]
+    pub publish_account_deletions: bool,
     /// Publishes account updates even if the txn_signature is not present.
     /// This will include account updates that occur without a corresponding
     /// transaction, i.e. caused by validator book-keeping. Omit to disable.
@@ -101,6 +107,7 @@ impl Default for Config {
             slot_status_topic: Default::default(),
             transaction_topic: Default::default(),
             publish_all_accounts: Default::default(),
+            publish_account_deletions: Default::default(),
             publish_accounts_without_signature: Default::default(),
             wrap_messages: Default::default(),
             environments: Default::default(),
