@@ -145,6 +145,7 @@ impl GeyserPlugin for KafkaPlugin {
 
         let info = Self::unwrap_update_account(account);
         if !self.publish_accounts_without_signature && info.txn.is_none() {
+            Self::log_ignore_account_update(info, "No Transaction Signature");
             return Ok(());
         }
 
@@ -162,6 +163,7 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         if !publishers.iter().any(|p| p.wants_account_key(info.owner)) {
+            Self::log_ignore_account_update(info, "No publisher wants this account");
             return Ok(());
         }
 
@@ -573,7 +575,7 @@ impl KafkaPlugin {
                     if is_system_program(&owner) {
                         trace!("Ignoring update for account key: {:?}. {}", owner, reason)
                     } else {
-                        debug!("Ignoring update for account key: {:?}. {}", owner, reason)
+                        trace!("Ignoring update for account key: {:?}. {}", owner, reason)
                     }
                 }
                 // Err should never happen because wants_account_key only returns false if the input is &[u8; 32]
@@ -608,7 +610,7 @@ impl KafkaPlugin {
                     reason
                 )
             } else {
-                debug!(
+                trace!(
                     "Ignoring transaction {:?} with account keys: {}. {}",
                     info.signature, keys_str, reason
                 )
