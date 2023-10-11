@@ -145,7 +145,6 @@ impl GeyserPlugin for KafkaPlugin {
 
         let info = Self::unwrap_update_account(account);
         if !self.publish_accounts_without_signature && info.txn.is_none() {
-            Self::log_ignore_account_update(info, "No Transaction Signature");
             return Ok(());
         }
 
@@ -163,7 +162,6 @@ impl GeyserPlugin for KafkaPlugin {
         }
 
         if !publishers.iter().any(|p| p.wants_account_key(info.owner)) {
-            Self::log_ignore_account_update(info, "No publisher wants this account");
             return Ok(());
         }
 
