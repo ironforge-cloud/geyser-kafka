@@ -208,7 +208,7 @@ impl Allowlist {
 
     // update_from_http_non_blocking updates the allowlist from a remote URL
     // without blocking the main thread.
-    pub fn update_from_http_non_blocking(&self) {
+    pub fn update_from_http_non_blocking(&self, now: &Instant) {
         if self.http_url.is_empty() {
             return;
         }
@@ -217,22 +217,26 @@ impl Allowlist {
         }
         let _once = self.http_updater_one.lock().unwrap();
 
-        let list = self.list.clone();
-        let http_last_updated = self.http_last_updated.clone();
-        let url = self.http_url.clone();
-        let auth_header = self.http_auth.clone();
-        std::thread::spawn(move || {
-            let program_allowlist = Self::fetch_remote_allowlist(&url, &auth_header);
-            if program_allowlist.is_err() {
-                return;
-            }
+        // While we were aquiring the lock another thread may have updated the list
+        // and thus we don't need to do that again.
+        if self.is_remote_allowlist_expired(now) {
+            let list = self.list.clone();
+            let http_last_updated = self.http_last_updated.clone();
+            let url = self.http_url.clone();
+            let auth_header = self.http_auth.clone();
+            std::thread::spawn(move || {
+                let program_allowlist = Self::fetch_remote_allowlist(&url, &auth_header);
+                if program_allowlist.is_err() {
+                    return;
+                }
 
-            let mut list = list.lock().unwrap();
-            *list = program_allowlist.unwrap();
+                let mut list = list.lock().unwrap();
+                *list = program_allowlist.unwrap();
 
-            let mut http_last_updated = http_last_updated.lock().unwrap();
-            *http_last_updated = std::time::Instant::now();
-        });
+                let mut http_last_updated = http_last_updated.lock().unwrap();
+                *http_last_updated = std::time::Instant::now();
+            });
+        }
     }
 
     /// Initializes this allow list with data obtained from the given URL synchronously.
@@ -258,7 +262,7 @@ impl Allowlist {
 
     pub fn update_from_http_if_needed_async(&mut self, now: &Instant) {
         if self.is_remote_allowlist_expired(now) {
-            self.update_from_http_non_blocking();
+            self.update_from_http_non_blocking(now);
         }
     }
 
@@ -420,7 +424,7 @@ mod tests {
                 .create();
 
             let last_updated = allowlist.get_last_updated();
-            allowlist.update_from_http_non_blocking();
+            allowlist.update_from_http_non_blocking(&last_updated);
             // the values should be the same because it returns immediately
             // before the async task completes
             assert_eq!(allowlist.get_last_updated(), last_updated);
