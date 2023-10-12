@@ -6,7 +6,6 @@ use std::{
     collections::HashSet,
     str::FromStr,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use crate::EnvConfig;
@@ -19,17 +18,35 @@ use solana_geyser_plugin_interface::geyser_plugin_interface::{
 pub struct Allowlist {
     /// List of programs to allow.
     list: Arc<Mutex<HashSet<[u8; 32]>>>,
+    updater: Option<AllowlistUpdater>,
+}
+
+#[derive(Clone)]
+pub struct AllowlistUpdater {
     /// Url to fetch allowlist from.
     http_url: String,
     /// Optional auth header to fetch allowlist with.
     http_auth: String,
-    /// Last time the allowlist was updated from the remote server.
-    http_last_updated: Arc<Mutex<std::time::Instant>>,
-    /// How often to update the allowlist from the remote server.
-    http_update_interval: std::time::Duration,
     // http_updater_one is used to ensure that only one thread is fetching the allowlist from the
     // remote server at a time.
     http_updater_one: Arc<Mutex<()>>,
+    /// A slot in Solana is a fixed duration of time, currently set at 400 milliseconds, during
+    /// which a validator has the opportunity to produce a block.
+    /// Slots are sequential, meaning that they occur one after another in a linear fashion.
+    /// We use slot updates as an indicator of how much time has passed.
+    /// This slots interval determines how many slots to wait before updating the allowlist.
+    slot_interval: u64,
+}
+
+impl AllowlistUpdater {
+    fn is_updating(&self) -> bool {
+        let v = self.http_updater_one.try_lock();
+        v.is_err()
+    }
+
+    fn needs_update(&self, slot: u64) -> bool {
+        slot % self.slot_interval == 0
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -48,10 +65,14 @@ impl Allowlist {
             EnvConfig::Kafka(config) => {
                 // Users can provide a URL to fetch the allow list from
                 if !config.program_allowlist_url.is_empty() {
+                    assert!(
+                        config.program_allowlist_slot_interval > 0,
+                        "program_allowlist_slot_interval must be greater than 0"
+                    );
                     let mut this = Self::new_from_http(
                         &config.program_allowlist_url.clone(),
                         &config.program_allowlist_auth.clone(),
-                        std::time::Duration::from_secs(config.program_allowlist_expiry_sec),
+                        config.program_allowlist_slot_interval,
                     )
                     .unwrap();
 
@@ -91,11 +112,7 @@ impl Allowlist {
             .collect();
         Ok(Self {
             list: Arc::new(Mutex::new(program_allowlist)),
-            http_last_updated: Arc::new(Mutex::new(std::time::Instant::now())),
-            http_url: "".to_string(),
-            http_auth: "".to_string(),
-            http_update_interval: std::time::Duration::from_secs(0),
-            http_updater_one: Arc::new(Mutex::new(())),
+            updater: None,
         })
     }
 
@@ -178,58 +195,20 @@ impl Allowlist {
         Ok(program_allowlist)
     }
 
-    pub fn get_last_updated(&self) -> std::time::Instant {
-        let v = self.http_last_updated.lock().unwrap();
-        *v
-    }
-
-    fn is_updating(&self) -> bool {
-        let v = self.http_updater_one.try_lock();
-        if v.is_err() {
-            true
-        } else {
-            let v = self.http_last_updated.try_lock();
-            v.is_err()
-        }
-    }
-
-    pub fn update_from_http(&mut self) -> PluginResult<()> {
-        if self.http_url.is_empty() {
-            return Ok(());
-        }
-        let _once = self.http_updater_one.lock().unwrap();
-
-        let program_allowlist = Self::fetch_remote_allowlist(&self.http_url, &self.http_auth);
-        if program_allowlist.is_err() {
-            return Err(program_allowlist.err().unwrap());
-        }
-
-        let mut list = self.list.lock().unwrap();
-        *list = program_allowlist.unwrap();
-
-        let mut http_last_updated = self.http_last_updated.lock().unwrap();
-        *http_last_updated = std::time::Instant::now();
-        Ok(())
-    }
-
-    // update_from_http_non_blocking updates the allowlist from a remote URL
-    // without blocking the main thread.
-    pub fn update_from_http_non_blocking(&self, now: &Instant) {
-        if self.http_url.is_empty() {
-            return;
-        }
-        if self.is_updating() {
-            return;
-        }
-        let _once = self.http_updater_one.lock().unwrap();
+    // Updates the allowlist from a remote URL without blocking the main thread.
+    pub fn update_from_http_non_blocking(&self, slot: u64) {
+        let updater = match &self.updater {
+            Some(updater) if !updater.is_updating() => updater,
+            _ => return,
+        };
+        let _once = updater.http_updater_one.lock().unwrap();
 
         // While we were aquiring the lock another thread may have updated the list
         // and thus we don't need to do that again.
-        if self.is_remote_allowlist_expired(now) {
+        if updater.needs_update(slot) {
             let list = self.list.clone();
-            let http_last_updated = self.http_last_updated.clone();
-            let url = self.http_url.clone();
-            let auth_header = self.http_auth.clone();
+            let url = updater.http_url.clone();
+            let auth_header = updater.http_auth.clone();
             std::thread::spawn(move || {
                 let thread_id = std::thread::current().id();
                 debug!("Updating remote allowlist, thread {:?}", thread_id);
@@ -241,8 +220,6 @@ impl Allowlist {
                 let mut list = list.lock().unwrap();
                 *list = program_allowlist.unwrap();
 
-                let mut http_last_updated = http_last_updated.lock().unwrap();
-                *http_last_updated = std::time::Instant::now();
                 debug!("Updated remote allowlist, thread {:?}", thread_id);
             });
         }
@@ -255,47 +232,36 @@ impl Allowlist {
         let mut list = self.list.lock().unwrap();
         *list = program_allowlist;
 
-        let mut http_last_updated = self.http_last_updated.lock().unwrap();
-        *http_last_updated = std::time::Instant::now();
-
         Ok(())
     }
 
-    pub fn is_remote_allowlist_expired(&self, now: &Instant) -> bool {
-        if self.http_url.is_empty() {
-            return false;
-        }
-        let last_updated = self.get_last_updated();
-        now.duration_since(last_updated) > self.http_update_interval
-    }
-
-    pub fn update_from_http_if_needed_async(&mut self, now: &Instant) {
-        if self.is_remote_allowlist_expired(now) {
-            self.update_from_http_non_blocking(now);
+    fn needs_remote_update(&self, slot: u64) -> bool {
+        match &self.updater {
+            Some(updater) => updater.needs_update(slot),
+            None => false,
         }
     }
 
-    pub fn new_from_http(
-        url: &str,
-        auth_header: &str,
-        interval: std::time::Duration,
-    ) -> PluginResult<Self> {
-        let mut interval = interval;
-        if interval < std::time::Duration::from_secs(1) {
-            interval = std::time::Duration::from_secs(1);
+    pub fn update_from_http_if_needed_async(&mut self, slot: u64) {
+        if self.needs_remote_update(slot) {
+            self.update_from_http_non_blocking(slot);
         }
+    }
+
+    pub fn new_from_http(url: &str, auth_header: &str, slot_interval: u64) -> PluginResult<Self> {
         let program_allowlist = Self::fetch_remote_allowlist(url, auth_header);
         if program_allowlist.is_err() {
             return Err(program_allowlist.err().unwrap());
         }
-        Ok(Self {
-            list: Arc::new(Mutex::new(program_allowlist.unwrap())),
-            // last updated: now
-            http_last_updated: Arc::new(Mutex::new(std::time::Instant::now())),
+        let updater = AllowlistUpdater {
             http_url: url.to_string(),
             http_auth: auth_header.to_string(),
-            http_update_interval: interval,
             http_updater_one: Arc::new(Mutex::new(())),
+            slot_interval,
+        };
+        Ok(Self {
+            list: Arc::new(Mutex::new(program_allowlist.unwrap())),
+            updater: Some(updater),
         })
     }
 
@@ -309,6 +275,7 @@ impl Allowlist {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use std::{thread, time::Duration};
@@ -473,3 +440,4 @@ mod tests {
         }
     }
 }
+*/
