@@ -54,8 +54,9 @@ impl<'a> ReplicaTransactionInfo<'a> {
                 // of bounds are even matching up with the account keys at all
                 if key.is_none() {
                     debug!(
-                        "Prebalance idx {idx} is out of bounds for account_keys {}",
-                        account_keys.len()
+                        "Prebalance idx {idx} is out of bounds for account_keys {}. Signature: {}",
+                        account_keys.len(),
+                        self.signature().to_string()
                     );
                 }
                 key
