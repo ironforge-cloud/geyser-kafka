@@ -275,11 +275,8 @@ impl Allowlist {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
-    use std::{thread, time::Duration};
-
     use crate::env_config::EnvConfigKafka;
 
     use super::*;
@@ -313,6 +310,83 @@ mod tests {
                 .to_bytes()
         ));
     }
+
+    #[test]
+    fn test_allowlist_create_from_http() {
+        let _m = mockito::mock("GET", "/allowlist.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
+            .create();
+
+        let config = EnvConfig::Kafka(EnvConfigKafka {
+            program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
+            program_allowlist_slot_interval: 5,
+            program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
+            ..EnvConfigKafka::default()
+        });
+
+
+        let allowlist = Allowlist::new_from_config(&config).unwrap();
+        assert_eq!(allowlist.len(), 3);
+
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC")
+                .unwrap()
+                .to_bytes()
+        ));
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
+                .unwrap()
+                .to_bytes()
+        ));
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("Vote111111111111111111111111111111111111111")
+                .unwrap()
+                .to_bytes()
+        ));
+        assert!(!allowlist.wants_program(
+            &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
+                .unwrap()
+                .to_bytes()
+        ));
+    }
+
+    #[test]
+    fn test_allowlist_needs_remote_upate() {
+        let _m = mockito::mock("GET", "/allowlist.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("{\"result\":[]}")
+            .create();
+        
+        let config = EnvConfig::Kafka(EnvConfigKafka {
+            program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
+            program_allowlist_slot_interval: 5,
+            program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
+            ..EnvConfigKafka::default()
+        });
+
+        let allowlist = Allowlist::new_from_config(&config).unwrap();
+        assert!(!allowlist.needs_remote_update(1));
+        assert!(allowlist.needs_remote_update(5));
+        assert!(!allowlist.needs_remote_update(9));
+        assert!(allowlist.needs_remote_update(10));
+    }
+
+    // TODO(thlorenz): Add tests for remote updates given specific slots
+
+}
+
+
+/*
+#[cfg(test)]
+mod tests {
+    use std::{thread, time::Duration};
+
+    use crate::env_config::EnvConfigKafka;
+
+    use super::*;
 
     #[test]
     fn test_allowlist_from_http() {
