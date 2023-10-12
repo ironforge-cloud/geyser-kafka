@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Deserialize;
 use simple_error::SimpleError;
 use solana_program::pubkey::Pubkey;
@@ -230,6 +231,8 @@ impl Allowlist {
             let url = self.http_url.clone();
             let auth_header = self.http_auth.clone();
             std::thread::spawn(move || {
+                let thread_id = std::thread::current().id();
+                debug!("Updating remote allowlist, thread {:?}", thread_id);
                 let program_allowlist = Self::fetch_remote_allowlist(&url, &auth_header);
                 if program_allowlist.is_err() {
                     return;
@@ -240,6 +243,7 @@ impl Allowlist {
 
                 let mut http_last_updated = http_last_updated.lock().unwrap();
                 *http_last_updated = std::time::Instant::now();
+                debug!("Updated remote allowlist, thread {:?}", thread_id);
             });
         }
     }
