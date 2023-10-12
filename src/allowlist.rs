@@ -183,8 +183,13 @@ impl Allowlist {
     }
 
     fn is_updating(&self) -> bool {
-        let v = self.http_last_updated.try_lock();
-        v.is_err()
+        let v = self.http_updater_one.try_lock();
+        if v.is_err() {
+            true
+        } else {
+            let v = self.http_last_updated.try_lock();
+            v.is_err()
+        }
     }
 
     pub fn update_from_http(&mut self) -> PluginResult<()> {
