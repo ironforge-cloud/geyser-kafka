@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use log::debug;
 use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaTransactionInfoV2;
 use solana_program::{message::SanitizedMessage, pubkey::Pubkey, slot_history::Slot};
 use solana_sdk::signature::Signature;
@@ -43,8 +44,24 @@ impl<'a> ReplicaTransactionInfo<'a> {
 
         let account_keys = self.account_keys();
         zero_balance_indexes
-            .iter()
-            .map(|&idx| account_keys[idx])
+            .into_iter()
+            .flat_map(|idx| {
+                let key = account_keys.get(idx);
+                // Even though this shouldn't happen, we see a balances array that doesn't match with
+                // the accout_keys array at times. We warn here and exclude this zero_balance
+                // account instead.
+                // However at that point there is not telling if the zero_balances which aren't out
+                // of bounds are even matching up with the account keys at all
+                if key.is_none() {
+                    debug!(
+                        "Prebalance idx {idx} is out of bounds for account_keys {}. Signature: {}",
+                        account_keys.len(),
+                        self.signature().to_string()
+                    );
+                }
+                key
+            })
+            .cloned()
             .collect::<Vec<_>>()
     }
 

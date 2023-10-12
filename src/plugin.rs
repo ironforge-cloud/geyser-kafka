@@ -568,7 +568,10 @@ impl KafkaPlugin {
     }
 
     fn log_ignore_account_update(info: &ReplicaAccountInfoV3, reason: &str) {
-        if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
+        let debug_ignored_updates = std::env::var("GEYSER_DEBUG_IGNORED_UPDATES").is_ok();
+        if (debug_ignored_updates && log_enabled!(::log::Level::Debug))
+            || log_enabled!(::log::Level::Trace)
+        {
             match <&[u8; 32]>::try_from(info.owner) {
                 Ok(key) => {
                     let owner = Pubkey::new_from_array(*key);
@@ -592,7 +595,10 @@ impl KafkaPlugin {
         account_keys: &AccountKeys,
         reason: &str,
     ) {
-        if log_enabled!(::log::Level::Debug) || log_enabled!(::log::Level::Trace) {
+        let debug_ignored_updates = std::env::var("GEYSER_DEBUG_IGNORED_UPDATES").is_ok();
+        if (debug_ignored_updates && log_enabled!(::log::Level::Debug))
+            || log_enabled!(::log::Level::Trace)
+        {
             // The account keys don't only include programs, so it is impossible to tell
             // if a transaction is affecting system programs only.
             // We err on _tracing_ to avoid spamming the logs.
