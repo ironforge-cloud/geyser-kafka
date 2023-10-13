@@ -332,7 +332,6 @@ mod tests {
             ..EnvConfigKafka::default()
         });
 
-
         let allowlist = Allowlist::new_from_config(&config).unwrap();
         assert_eq!(allowlist.len(), 3);
 
@@ -372,7 +371,7 @@ mod tests {
             .with_header("content-type", "text/plain")
             .with_body("{\"result\":[]}")
             .create();
-        
+
         let config = EnvConfig::Kafka(EnvConfigKafka {
             program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_string()].join(""),
             program_allowlist_slot_interval: 5,
@@ -421,7 +420,6 @@ mod tests {
                 .to_bytes()
         ));
 
-        
         // 4. Update if needed with slot causing update
         allowlist.update_from_http_if_needed_async(10);
         wait_for_update_completion(&allowlist);
@@ -470,5 +468,4 @@ mod tests {
                 .to_bytes()
         ));
     }
-
 }

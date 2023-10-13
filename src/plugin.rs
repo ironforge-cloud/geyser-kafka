@@ -198,11 +198,11 @@ impl GeyserPlugin for KafkaPlugin {
     ) -> PluginResult<()> {
         let publishers = &self.unwrap_publishers();
         if let PluginSlotStatus::Confirmed = status {
-                for publisher in publishers {
-                    publisher
-                        .get_allowlist()
-                        .update_from_http_if_needed_async(slot);
-                }
+            for publisher in publishers {
+                publisher
+                    .get_allowlist()
+                    .update_from_http_if_needed_async(slot);
+            }
         };
 
         let mut errors = Vec::new();
