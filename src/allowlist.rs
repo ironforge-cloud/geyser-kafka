@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Deserialize;
 use simple_error::SimpleError;
 use solana_program::pubkey::Pubkey;
@@ -5,7 +6,6 @@ use std::{
     collections::HashSet,
     str::FromStr,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use crate::EnvConfig;
@@ -18,17 +18,34 @@ use solana_geyser_plugin_interface::geyser_plugin_interface::{
 pub struct Allowlist {
     /// List of programs to allow.
     list: Arc<Mutex<HashSet<[u8; 32]>>>,
+    updater: Option<AllowlistUpdater>,
+}
+
+#[derive(Clone)]
+pub struct AllowlistUpdater {
     /// Url to fetch allowlist from.
     http_url: String,
     /// Optional auth header to fetch allowlist with.
     http_auth: String,
-    /// Last time the allowlist was updated from the remote server.
-    http_last_updated: Arc<Mutex<std::time::Instant>>,
-    /// How often to update the allowlist from the remote server.
-    http_update_interval: std::time::Duration,
     // http_updater_one is used to ensure that only one thread is fetching the allowlist from the
     // remote server at a time.
-    http_updater_one: Arc<Mutex<()>>,
+    http_is_updating: Arc<Mutex<bool>>,
+    /// A slot in Solana is a fixed duration of time, currently set at 400 milliseconds, during
+    /// which a validator has the opportunity to produce a block.
+    /// Slots are sequential, meaning that they occur one after another in a linear fashion.
+    /// We use slot updates as an indicator of how much time has passed.
+    /// This slots interval determines how many slots to wait before updating the allowlist.
+    slot_interval: u64,
+}
+
+impl AllowlistUpdater {
+    fn is_updating(&self) -> bool {
+        *self.http_is_updating.lock().unwrap()
+    }
+
+    fn needs_update(&self, slot: u64) -> bool {
+        slot % self.slot_interval == 0
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -47,10 +64,14 @@ impl Allowlist {
             EnvConfig::Kafka(config) => {
                 // Users can provide a URL to fetch the allow list from
                 if !config.program_allowlist_url.is_empty() {
+                    assert!(
+                        config.program_allowlist_slot_interval > 0,
+                        "program_allowlist_slot_interval must be greater than 0"
+                    );
                     let mut this = Self::new_from_http(
                         &config.program_allowlist_url.clone(),
                         &config.program_allowlist_auth.clone(),
-                        std::time::Duration::from_secs(config.program_allowlist_expiry_sec),
+                        config.program_allowlist_slot_interval,
                     )
                     .unwrap();
 
@@ -90,11 +111,7 @@ impl Allowlist {
             .collect();
         Ok(Self {
             list: Arc::new(Mutex::new(program_allowlist)),
-            http_last_updated: Arc::new(Mutex::new(std::time::Instant::now())),
-            http_url: "".to_string(),
-            http_auth: "".to_string(),
-            http_update_interval: std::time::Duration::from_secs(0),
-            http_updater_one: Arc::new(Mutex::new(())),
+            updater: None,
         })
     }
 
@@ -177,61 +194,34 @@ impl Allowlist {
         Ok(program_allowlist)
     }
 
-    pub fn get_last_updated(&self) -> std::time::Instant {
-        let v = self.http_last_updated.lock().unwrap();
-        *v
-    }
-
-    fn is_updating(&self) -> bool {
-        let v = self.http_last_updated.try_lock();
-        v.is_err()
-    }
-
-    pub fn update_from_http(&mut self) -> PluginResult<()> {
-        if self.http_url.is_empty() {
-            return Ok(());
-        }
-        let _once = self.http_updater_one.lock().unwrap();
-
-        let program_allowlist = Self::fetch_remote_allowlist(&self.http_url, &self.http_auth);
-        if program_allowlist.is_err() {
-            return Err(program_allowlist.err().unwrap());
-        }
-
-        let mut list = self.list.lock().unwrap();
-        *list = program_allowlist.unwrap();
-
-        let mut http_last_updated = self.http_last_updated.lock().unwrap();
-        *http_last_updated = std::time::Instant::now();
-        Ok(())
-    }
-
-    // update_from_http_non_blocking updates the allowlist from a remote URL
-    // without blocking the main thread.
+    // Updates the allowlist from a remote URL without blocking the main thread.
     pub fn update_from_http_non_blocking(&self) {
-        if self.http_url.is_empty() {
-            return;
-        }
-        if self.is_updating() {
-            return;
-        }
-        let _once = self.http_updater_one.lock().unwrap();
+        let updater = match &self.updater {
+            Some(updater) if !updater.is_updating() => updater,
+            _ => return,
+        };
 
         let list = self.list.clone();
-        let http_last_updated = self.http_last_updated.clone();
-        let url = self.http_url.clone();
-        let auth_header = self.http_auth.clone();
+        let url = updater.http_url.clone();
+        let auth_header = updater.http_auth.clone();
+
+        let is_updating = updater.http_is_updating.clone();
+        *is_updating.lock().unwrap() = true;
+
         std::thread::spawn(move || {
+            let thread_id = std::thread::current().id();
+            debug!("Updating remote allowlist, thread {:?}", thread_id);
             let program_allowlist = Self::fetch_remote_allowlist(&url, &auth_header);
             if program_allowlist.is_err() {
+                *is_updating.lock().unwrap() = false;
                 return;
             }
 
             let mut list = list.lock().unwrap();
             *list = program_allowlist.unwrap();
+            *is_updating.lock().unwrap() = false;
 
-            let mut http_last_updated = http_last_updated.lock().unwrap();
-            *http_last_updated = std::time::Instant::now();
+            debug!("Updated remote allowlist, thread {:?}", thread_id);
         });
     }
 
@@ -242,47 +232,36 @@ impl Allowlist {
         let mut list = self.list.lock().unwrap();
         *list = program_allowlist;
 
-        let mut http_last_updated = self.http_last_updated.lock().unwrap();
-        *http_last_updated = std::time::Instant::now();
-
         Ok(())
     }
 
-    pub fn is_remote_allowlist_expired(&self, now: &Instant) -> bool {
-        if self.http_url.is_empty() {
-            return false;
+    fn needs_remote_update(&self, slot: u64) -> bool {
+        match &self.updater {
+            Some(updater) => updater.needs_update(slot),
+            None => false,
         }
-        let last_updated = self.get_last_updated();
-        now.duration_since(last_updated) > self.http_update_interval
     }
 
-    pub fn update_from_http_if_needed_async(&mut self, now: &Instant) {
-        if self.is_remote_allowlist_expired(now) {
+    pub fn update_from_http_if_needed_async(&mut self, slot: u64) {
+        if self.needs_remote_update(slot) {
             self.update_from_http_non_blocking();
         }
     }
 
-    pub fn new_from_http(
-        url: &str,
-        auth_header: &str,
-        interval: std::time::Duration,
-    ) -> PluginResult<Self> {
-        let mut interval = interval;
-        if interval < std::time::Duration::from_secs(1) {
-            interval = std::time::Duration::from_secs(1);
-        }
+    pub fn new_from_http(url: &str, auth_header: &str, slot_interval: u64) -> PluginResult<Self> {
         let program_allowlist = Self::fetch_remote_allowlist(url, auth_header);
         if program_allowlist.is_err() {
             return Err(program_allowlist.err().unwrap());
         }
-        Ok(Self {
-            list: Arc::new(Mutex::new(program_allowlist.unwrap())),
-            // last updated: now
-            http_last_updated: Arc::new(Mutex::new(std::time::Instant::now())),
+        let updater = AllowlistUpdater {
             http_url: url.to_string(),
             http_auth: auth_header.to_string(),
-            http_update_interval: interval,
-            http_updater_one: Arc::new(Mutex::new(())),
+            http_is_updating: Arc::new(Mutex::new(false)),
+            slot_interval,
+        };
+        Ok(Self {
+            list: Arc::new(Mutex::new(program_allowlist.unwrap())),
+            updater: Some(updater),
         })
     }
 
@@ -292,13 +271,17 @@ impl Allowlist {
             _ => return true,
         };
         let list = self.list.lock().unwrap();
-        list.is_empty() || list.contains(key)
+        // If we were given an empty list and we're not ever updating it then we assume
+        // that we want all programs.
+        // However if updating the list failed and it is empty for that reason we prefer
+        // to not include any programs instead of flooding kafka.
+        (self.updater.is_none() && list.is_empty()) || list.contains(key)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{thread, time::Duration};
+    use std::{thread::sleep, time::Duration};
 
     use crate::env_config::EnvConfigKafka;
 
@@ -307,8 +290,8 @@ mod tests {
     fn test_allowlist_from_vec() {
         let config = EnvConfig::Kafka(EnvConfigKafka {
             program_allowlist: vec![
-                "Sysvar1111111111111111111111111111111111111".to_owned(),
-                "Vote111111111111111111111111111111111111111".to_owned(),
+                "Sysvar1111111111111111111111111111111111111".to_string(),
+                "Vote111111111111111111111111111111111111111".to_string(),
             ],
             ..EnvConfigKafka::default()
         });
@@ -335,8 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn test_allowlist_from_http() {
-        // create fake http server
+    fn test_allowlist_create_from_http() {
         let _m = mockito::mock("GET", "/allowlist.txt")
             .with_status(200)
             .with_header("content-type", "text/plain")
@@ -344,16 +326,14 @@ mod tests {
             .create();
 
         let config = EnvConfig::Kafka(EnvConfigKafka {
-            program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_owned()].join(""),
-            program_allowlist_expiry_sec: 3,
-            program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_owned()],
+            program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_string()].join(""),
+            program_allowlist_slot_interval: 5,
+            program_allowlist: vec!["WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC".to_string()],
             ..EnvConfigKafka::default()
         });
 
-        let mut allowlist = Allowlist::new_from_config(&config).unwrap();
-        let now = std::time::Instant::now();
+        let allowlist = Allowlist::new_from_config(&config).unwrap();
         assert_eq!(allowlist.len(), 3);
-        assert!(!allowlist.is_remote_allowlist_expired(&now));
 
         assert!(allowlist.wants_program(
             &Pubkey::from_str("WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC")
@@ -370,93 +350,122 @@ mod tests {
                 .unwrap()
                 .to_bytes()
         ));
-        // negative test
         assert!(!allowlist.wants_program(
             &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
                 .unwrap()
                 .to_bytes()
         ));
+    }
 
-        {
-            let _u = mockito::mock("GET", "/allowlist.txt")
-                .with_status(200)
-                .with_header("content-type", "text/plain")
-                .with_body("{\"result\":[\"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin\"]}")
-                .create();
-            allowlist.update_from_http().unwrap();
-            assert_eq!(allowlist.len(), 1);
-
-            assert!(allowlist.wants_program(
-                &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
-                    .unwrap()
-                    .to_bytes()
-            ));
+    fn wait_for_update_completion(allowlist: &Allowlist) {
+        assert!(allowlist.updater.as_ref().unwrap().is_updating());
+        while allowlist.updater.as_ref().unwrap().is_updating() {
+            sleep(Duration::from_millis(100));
         }
-        {
-            let _u = mockito::mock("GET", "/allowlist.txt")
-                .with_status(200)
-                .with_header("content-type", "text/plain")
-                .with_body("{\"result\":[]}")
-                .create();
-            let last_updated = allowlist.get_last_updated();
-            println!("last_updated: {last_updated:?}");
-            allowlist.update_from_http().unwrap();
-            assert_ne!(allowlist.get_last_updated(), last_updated);
-            assert_eq!(allowlist.len(), 0);
-            println!("last_updated: {:?}", allowlist.get_last_updated());
+    }
 
-            assert!(allowlist.wants_program(
-                &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
-                    .unwrap()
-                    .to_bytes()
-            ));
-        }
-        {
-            // async
-            let _u = mockito::mock("GET", "/allowlist.txt")
-                .with_status(200)
-                .with_header("content-type", "text/plain")
-                .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
-                .create();
+    #[test]
+    fn test_allowlist_needs_remote_upate() {
+        let _m = mockito::mock("GET", "/allowlist.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("{\"result\":[]}")
+            .create();
 
-            let last_updated = allowlist.get_last_updated();
-            allowlist.update_from_http_non_blocking();
-            // the values should be the same because it returns immediately
-            // before the async task completes
-            assert_eq!(allowlist.get_last_updated(), last_updated);
-            assert_eq!(allowlist.len(), 0);
+        let config = EnvConfig::Kafka(EnvConfigKafka {
+            program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_string()].join(""),
+            program_allowlist_slot_interval: 5,
+            ..EnvConfigKafka::default()
+        });
 
-            // sleep for 100 milliseconds to allow the async task to complete
-            thread::sleep(std::time::Duration::from_millis(100));
-            let now = std::time::Instant::now();
+        let allowlist = Allowlist::new_from_config(&config).unwrap();
+        assert!(!allowlist.needs_remote_update(1));
+        assert!(allowlist.needs_remote_update(5));
+        assert!(!allowlist.needs_remote_update(9));
+        assert!(allowlist.needs_remote_update(10));
+    }
 
-            assert!(!allowlist.is_remote_allowlist_expired(&now));
+    #[test]
+    fn test_allowlist_remote_upate_if_needed() {
+        let _m = mockito::mock("GET", "/allowlist.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("{\"result\":[]}")
+            .create();
 
-            assert_eq!(allowlist.len(), 2);
-            assert_ne!(allowlist.get_last_updated(), last_updated);
+        let config = EnvConfig::Kafka(EnvConfigKafka {
+            program_allowlist_url: [mockito::server_url(), "/allowlist.txt".to_string()].join(""),
+            program_allowlist_slot_interval: 5,
+            ..EnvConfigKafka::default()
+        });
 
-            assert!(allowlist.wants_program(
-                &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
-                    .unwrap()
-                    .to_bytes()
-            ));
-            assert!(allowlist.wants_program(
-                &Pubkey::from_str("Vote111111111111111111111111111111111111111")
-                    .unwrap()
-                    .to_bytes()
-            ));
-            // negative test
-            assert!(!allowlist.wants_program(
-                &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
-                    .unwrap()
-                    .to_bytes()
-            ));
+        let mut allowlist = Allowlist::new_from_config(&config).unwrap();
+        // 1. Initial allowlist is empty
+        assert_eq!(allowlist.len(), 0);
 
-            // Claim we are 3 seconds in the future
-            let now = std::time::Instant::now()
-                .checked_add(Duration::from_secs(3))
-                .unwrap();
-            assert!(allowlist.is_remote_allowlist_expired(&now));
-        }
+        // 2. Allowlist is updated remotely
+        let _m = mockito::mock("GET", "/allowlist.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\"]}")
+            .create();
+
+        // 3. Update if needed with slot not causing update
+        allowlist.update_from_http_if_needed_async(7);
+        assert!(!allowlist.updater.as_ref().unwrap().is_updating());
+        assert_eq!(allowlist.len(), 0);
+        assert!(!allowlist.wants_program(
+            &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
+                .unwrap()
+                .to_bytes()
+        ));
+
+        // 4. Update if needed with slot causing update
+        allowlist.update_from_http_if_needed_async(10);
+        wait_for_update_completion(&allowlist);
+        assert_eq!(allowlist.len(), 2);
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
+                .unwrap()
+                .to_bytes()
+        ));
+
+        // 5. Allowlist is updated remotely again
+        let _m = mockito::mock("GET", "/allowlist.txt")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("{\"result\":[\"Sysvar1111111111111111111111111111111111111\",\"Vote111111111111111111111111111111111111111\", \"WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC\"]}")
+            .create();
+
+        // 6. Update if needed with another slot not causing update
+        allowlist.update_from_http_if_needed_async(13);
+        assert!(!allowlist.updater.as_ref().unwrap().is_updating());
+        assert_eq!(allowlist.len(), 2);
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
+                .unwrap()
+                .to_bytes()
+        ));
+        assert!(!allowlist.wants_program(
+            &Pubkey::from_str("WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC")
+                .unwrap()
+                .to_bytes()
+        ));
+
+        // 7. Update if needed with another slot not causing update
+        allowlist.update_from_http_if_needed_async(15);
+        wait_for_update_completion(&allowlist);
+        assert!(!allowlist.updater.as_ref().unwrap().is_updating());
+        assert_eq!(allowlist.len(), 3);
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
+                .unwrap()
+                .to_bytes()
+        ));
+        assert!(allowlist.wants_program(
+            &Pubkey::from_str("WormT3McKhFJ2RkiGpdw9GKvNCrB2aB54gb2uV9MfQC")
+                .unwrap()
+                .to_bytes()
+        ));
     }
 }

@@ -68,8 +68,8 @@ _Local Environment Config Values_ below.
         * If provided the request to the program_allowlist_url will add an
             'Authorization: <value>' header.
         * A sample auth header value would be 'Bearer my_long_secret_token'.
-* **program_allowlist_expiry_sec** (`u64`)
-    * Update iterval for allowlist from http url.
+* **program_allowlist_slot_interval** (u64)
+    * Slots interval which determines how many slots to wait before updating the allowlist.
 
 ### Global Config Values
 
@@ -147,7 +147,7 @@ are added to the `environments` array.
       "name": "dev",
       "program_allowlist_url": "https://example.com/supported-programs",
       "program_allowlist_auth": "Bearer <dev secret bearer token>",
-      "program_allowlist_expiry_sec": 30,
+      "program_allowlist_slot_interval": 150,
       "kafka": {
         "bootstrap.servers": "dev.bootstrap-server:9092",
         "sasl.username": "<username>",
@@ -164,7 +164,7 @@ are added to the `environments` array.
       "name": "stage",
       "program_allowlist_url": "https://example.com/supported-programs",
       "program_allowlist_auth": "Bearer <stage secret bearer token>",
-      "program_allowlist_expiry_sec": 15,
+      "program_allowlist_slot_interval": 90,
       "kafka": {
         "bootstrap.servers": "stage.bootstrap-server:9092",
         "sasl.username": "<username>",

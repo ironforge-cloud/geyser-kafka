@@ -44,20 +44,20 @@ pub struct EnvConfigKafka {
     #[serde(default)]
     pub program_allowlist_auth: String,
 
-    /// Update iterval for allowlist from http url.
+    /// Slots interval which determines how many slots to wait before updating the allowlist.
     #[serde(default)]
-    pub program_allowlist_expiry_sec: u64,
+    pub program_allowlist_slot_interval: u64,
 }
 
 impl Default for EnvConfigKafka {
     fn default() -> Self {
         Self {
-            program_allowlist_expiry_sec: 60,
             name: Default::default(),
             kafka: Default::default(),
             program_allowlist: Default::default(),
             program_allowlist_url: Default::default(),
             program_allowlist_auth: Default::default(),
+            program_allowlist_slot_interval: 150, // roughly 60 secs
         }
     }
 }

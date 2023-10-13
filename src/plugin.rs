@@ -149,19 +149,7 @@ impl GeyserPlugin for KafkaPlugin {
             return Ok(());
         }
 
-        // Trigger an update of the remote allowlist for each filter
-        // but don't wait for it to complete.
-        // NOTE: we trigger this even on account updates that we don't care about
-        // since checking if the update interval expired should be fairly cheap.
-        // If we see a large overhead we should reconsider
-        let now = std::time::Instant::now();
         let publishers = &self.unwrap_publishers();
-        for publisher in publishers {
-            publisher
-                .get_allowlist()
-                .update_from_http_if_needed_async(&now);
-        }
-
         if !publishers.iter().any(|p| p.wants_account_key(info.owner)) {
             Self::log_ignore_account_update(info, "No publisher wants this account");
             return Ok(());
@@ -209,6 +197,13 @@ impl GeyserPlugin for KafkaPlugin {
         status: PluginSlotStatus,
     ) -> PluginResult<()> {
         let publishers = &self.unwrap_publishers();
+        if let PluginSlotStatus::Confirmed = status {
+            for publisher in publishers {
+                publisher
+                    .get_allowlist()
+                    .update_from_http_if_needed_async(slot);
+            }
+        };
 
         let mut errors = Vec::new();
         for publisher in publishers {
