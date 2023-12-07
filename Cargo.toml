@@ -1,7 +1,7 @@
 [package]
 name = "solana-accountsdb-plugin-kafka"
 description = "Solana AccountsDb plugin for Kafka"
-version = "0.1.6+solana.1.16.12"
+version = "0.1.7+solana.1.17"
 edition = "2021"
 repository = "https://github.com/ironforge-cloud/geyser-kafka"
 license = "Apache-2.0"
@@ -10,11 +10,11 @@ license = "Apache-2.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-solana-geyser-plugin-interface = { version = "=1.17.5" }
-solana-logger = { version = "=1.17.5" }
-solana-program = "=1.17.5"
-solana-sdk = "=1.17.5"
-solana-transaction-status = { version = "=1.17.5" }
+solana-geyser-plugin-interface = { version = "=1.17" }
+solana-logger = { version = "=1.17" }
+solana-program = "=1.17"
+solana-sdk = "=1.17"
+solana-transaction-status = { version = "=1.17" }
 
 hyper = { version = "0.14.26", features = ["server"] }
 lazy_static = "1.4.0"
